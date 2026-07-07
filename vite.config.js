@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/Clavissimo/', // GitHub Pages liefert unter github.io/Clavissimo/ aus
   plugins: [
     react(),
     VitePWA({
