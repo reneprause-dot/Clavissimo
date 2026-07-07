@@ -4,18 +4,18 @@
  * Mit Storno-Button und E-Mail-Versand
  */
 import { useEffect, useState, useCallback } from 'react'
-import { heute, normDatum, normZeit, faelligAm, jetzt } from '../../lib/zeitHelfer'
-import BelegVorschau from '../../components/BelegVorschau'
-import { sendeEmail, erstelleRechnungsEmail, ladeEmailConfig, isEmailKonfiguriert } from '../../lib/emailService'
-import { getSupabaseClient } from '../../lib/supabase'
-import { useAuth } from '../../context/AuthContext'
-import { useModules } from '../../context/ModuleContext'
-import { verkaufRechnungBuchen, verkaufLieferscheinBuchen, zahlungBuchen, verkaufAngebotAnlegen, verkaufAuftragAnlegen, manuelleVerkaufsrechnungAnlegen } from '../../lib/buchungslogik'
-import { triggerEvent, hatBlockierung, EVENTS } from '../../lib/modulIntegration'
-import { storniereVKBeleg } from '../../lib/stornoLogik'
-import { druckBeleg } from '../../lib/pdfExport'
-import EmailPanel from '../../components/EmailPanel'
-import { logAudit } from '../../lib/auditTrail'
+import { heute, normDatum, normZeit, faelligAm, jetzt } from '../lib/zeitHelfer'
+import BelegVorschau from '../components/BelegVorschau'
+import { sendeEmail, erstelleRechnungsEmail, ladeEmailConfig, isEmailKonfiguriert } from '../lib/emailService'
+import { getSupabaseClient } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+import { useModules } from '../context/ModuleContext'
+import { verkaufRechnungBuchen, verkaufLieferscheinBuchen, zahlungBuchen, verkaufAngebotAnlegen, verkaufAuftragAnlegen, manuelleVerkaufsrechnungAnlegen } from '../lib/buchungslogik'
+import { triggerEvent, hatBlockierung, EVENTS } from '../lib/modulIntegration'
+import { storniereVKBeleg } from '../lib/stornoLogik'
+import { druckBeleg } from '../lib/pdfExport'
+import EmailPanel from '../components/EmailPanel'
+import { logAudit } from '../lib/auditTrail'
 
 const BELEG_TYPEN = ['angebot','auftrag','lieferschein','rechnung','gutschrift']
 const STATUS_FARBE = { entwurf:'var(--text-muted,#475569)', offen:'var(--accent,#2563eb)', bestaetigt:'#7c3aed', geliefert:'#d97706', gebucht:'var(--success,#059669)', bezahlt:'var(--success,#10b981)', storniert:'var(--danger,#dc2626)', abgelehnt:'var(--danger,#ef4444)' }

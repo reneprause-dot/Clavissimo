@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { getSupabaseClient } from '../../lib/supabase'
-import { dbCall } from '../../lib/dbHelper'
-import { useAuth } from '../../context/AuthContext'
+import { getSupabaseClient } from '../lib/supabase'
+import { dbCall } from '../lib/dbHelper'
+import { useAuth } from '../context/AuthContext'
 
 export default function Lager() {
   const { hasRole } = useAuth()
