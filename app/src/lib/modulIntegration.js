@@ -1,43 +1,66 @@
 /**
- * Clavissimo – Modul-Integration (Platzhalter-Stub)
+ * Clavissimo – Modul-Integration
  * ============================================================
- * Clavissimo hat (bewusst, siehe CLAVISSIMO_SPEC.md) keine
- * Mehrbranchen-Integrationsmatrix wie Clavis ERP. Damit die
- * bestehenden Aufrufe in MedCanGPharma.jsx und Verkauf.jsx trotzdem
- * funktionieren, ist hier ein minimaler, ungefährlicher Stub:
+ * Das ist die tatsächliche Umsetzung dessen, was in Clavis ERP über
+ * eine generische Event-/Handler-Registry lief: Verkauf.jsx feuert bei
+ * jedem neuen Beleg EVENTS.VERKAUF_BELEG_ERSTELLT, MedCanGPharma.jsx
+ * feuert bei Chargen-Freigabe/-Sperrung. Für Clavissimo (eine Branche,
+ * kein Multi-Modul-Marktplatz) ist die generische Registry durch
+ * direkte, klar benannte Prüfungen ersetzt — funktional gleichwertig,
+ * aber ohne die Overhead-Abstraktion für 42 Branchen.
  *
- *   - triggerEvent(...)   protokolliert nur in der Konsole, tut sonst nichts.
- *   - hatBlockierung(...) gibt immer "keine Blockierung" zurück.
- *
- * Wenn du echte modulübergreifende Automatisierung willst (z.B.
- * "Charge freigegeben → automatisch Buchungssatz erzeugen"), ersetze
- * diese Datei durch eine echte Implementierung oder erweitere die
- * Funktionen unten gezielt für die Fälle, die du brauchst.
+ * WICHTIG zur Aufrufkonvention (aus Verkauf.jsx übernommen, nicht
+ * verändern): triggerEvent() ist async, hatBlockierung() ist es NICHT.
+ * Verkauf.jsx ruft `if (hatBlockierung(integErg))` ohne await auf —
+ * hatBlockierung muss daher synchron auf dem bereits aufgelösten
+ * triggerEvent()-Ergebnis arbeiten, nicht selbst nachladen.
  * ============================================================
  */
+import { pruefeErlaubnis } from './medcangCompliance'
+import { logAudit } from './auditTrail'
 
 export const EVENTS = {
-  CHARGE_ERSTELLT:   'charge_erstellt',
-  CHARGE_FREIGEGEBEN: 'charge_freigegeben',
-  CHARGE_GESPERRT:    'charge_gesperrt',
-  VERKAUF_GEBUCHT:    'verkauf_gebucht',
-  EINKAUF_GEBUCHT:    'einkauf_gebucht',
-}
-
-export async function triggerEvent(event, payload = {}, context = {}) {
-  console.info(`[modulIntegration] Event: ${event}`, payload)
-  return { ok: true, handled: false }
+  VERKAUF_BELEG_ERSTELLT: 'verkauf_beleg_erstellt',
+  CHARGE_FREIGEGEBEN:     'charge_freigegeben',
+  CHARGE_GESPERRT:        'charge_gesperrt',
 }
 
 /**
- * Prüft, ob eine Aktion aufgrund einer Compliance-Regel blockiert werden
- * soll (z.B. "Verkauf an Partner ohne gültige Erlaubnis"). Im Stub immer
- * "nicht blockiert" — die eigentliche Erlaubnisprüfung läuft bei
- * Clavissimo direkt in Verkauf.jsx / MedCanG.jsx (pruefeErlaubnis siehe
- * CLAVISSIMO_SPEC.md), nicht über dieses generische Event-System.
+ * @param {string} event - einer der EVENTS-Werte
+ * @param {object} payload - event-spezifische Daten
+ * @param {object} context - z.B. { activeModules, erpUser }
+ * @returns {{ blockiert: boolean, gruende: string[] }}
  */
-export async function hatBlockierung(event, payload = {}) {
-  return { blockiert: false, gruende: [] }
+export async function triggerEvent(event, payload = {}, context = {}) {
+  switch (event) {
+    case EVENTS.VERKAUF_BELEG_ERSTELLT: {
+      const { erlaubt, warnungen } = await pruefeErlaubnis(payload.kundeId)
+      return { blockiert: !erlaubt, gruende: warnungen }
+    }
+
+    case EVENTS.CHARGE_FREIGEGEBEN:
+      await logAudit('charge_freigegeben', payload)
+      return { blockiert: false, gruende: [] }
+
+    case EVENTS.CHARGE_GESPERRT:
+      await logAudit('charge_gesperrt', payload)
+      return { blockiert: false, gruende: [] }
+
+    default:
+      console.warn(`[modulIntegration] Unbekanntes Event: ${event}`)
+      return { blockiert: false, gruende: [] }
+  }
 }
 
-export const HANDLER_REGISTRY = []
+/**
+ * Synchron! Nimmt das bereits aufgelöste Ergebnis von triggerEvent()
+ * entgegen (siehe Hinweis oben) — kein eigener DB-Zugriff hier.
+ */
+export function hatBlockierung(triggerErgebnis) {
+  return Boolean(triggerErgebnis?.blockiert)
+}
+
+/** Für UI-Anzeige der Blockierungsgründe (z.B. in showMsg). */
+export function blockierungsGruende(triggerErgebnis) {
+  return triggerErgebnis?.gruende || []
+}
