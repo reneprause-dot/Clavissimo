@@ -7,6 +7,7 @@ import LoginScreen from './components/LoginScreen'
 
 import Dashboard from './modules/Dashboard'
 import Lager from './modules/Lager'
+import Partnerstamm from './modules/Partnerstamm'
 import Einkauf from './modules/Einkauf'
 import Verkauf from './modules/Verkauf'
 import MedCanG from './modules/MedCanG'
@@ -28,7 +29,7 @@ const MODULE_COMPONENTS = {
   datev: () => <Platzhalter titel="DATEV Export" icon="📤" />,
   gobd: () => <Platzhalter titel="GoBD-Konformität" icon="🔒" />,
   medcang: MedCanGPharma,
-  partner: () => <Platzhalter titel="Partnerstamm" icon="👥" />,
+  partner: Partnerstamm,
   btm_buch: () => <Platzhalter titel="BtM-Buch" icon="📕" />,
   erlaubnis_monitor: () => <Platzhalter titel="Erlaubnis-Monitor" icon="📋" />,
   qm: () => <Platzhalter titel="eQMS" icon="✅" />,
