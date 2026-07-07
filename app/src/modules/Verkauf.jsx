@@ -11,7 +11,8 @@ import { getSupabaseClient } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useModules } from '../context/ModuleContext'
 import { verkaufRechnungBuchen, verkaufLieferscheinBuchen, zahlungBuchen, verkaufAngebotAnlegen, verkaufAuftragAnlegen, manuelleVerkaufsrechnungAnlegen } from '../lib/buchungslogik'
-import { triggerEvent, hatBlockierung, EVENTS } from '../lib/modulIntegration'
+import { triggerEvent, hatBlockierung, blockierungsGruende, EVENTS } from '../lib/modulIntegration'
+import { bucheBtMBewegungenFuerPositionen } from '../lib/btmBuch'
 import { storniereVKBeleg } from '../lib/stornoLogik'
 import { druckBeleg } from '../lib/pdfExport'
 import EmailPanel from '../components/EmailPanel'
@@ -107,7 +108,10 @@ export default function Verkauf() {
       kundeId: form.kunde_id,
       positionen: form.positionen,
     }, { activeModules, erpUser })
-    if (hatBlockierung(integErg)) { setSaving(false); return }
+    if (hatBlockierung(integErg)) {
+      showMsg(false, blockierungsGruende(integErg).join(' ') || 'Verkauf durch Compliance-Prüfung blockiert.')
+      setSaving(false); return
+    }
 
     try {
       let beleg, belegnr
@@ -184,6 +188,12 @@ export default function Verkauf() {
     try {
       if (beleg.typ === 'lieferschein') {
         await verkaufLieferscheinBuchen({ auftrag_id: beleg.id, lieferdatum: beleg.datum, positionen_geliefert: positionen.map(p=>({...p,gelieferte_menge:p.menge})), erstellt_von: erpUser?.id })
+        // BtM-Buch (§13 BtMVV): physischer Warenausgang, daher hier und
+        // nicht erst bei der Rechnung. Nur BtM-pflichtige Artikel werden
+        // tatsächlich gebucht — bucheBtMBewegung prüft das selbst.
+        await bucheBtMBewegungenFuerPositionen('abgang', positionen, {
+          partnerId: beleg.kunde_id, belegnr: beleg.belegnr, userId: erpUser?.id,
+        })
         showMsg(true, 'Lieferschein gebucht — Bestand reduziert.')
       } else if (beleg.typ === 'rechnung') {
         await verkaufRechnungBuchen({ referenz_id: beleg.id, datum: beleg.datum, positionen, notizen: beleg.notizen, erstellt_von: erpUser?.id })

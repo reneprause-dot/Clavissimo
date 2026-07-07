@@ -4,6 +4,7 @@ import BelegVorschau from '../components/BelegVorschau'
 import { manuelleEinkaufsrechnungAnlegen } from '../lib/buchungslogik'
 import { getSupabaseClient } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { bucheBtMBewegungenFuerPositionen } from '../lib/btmBuch'
 import {
   einkaufBestellungAnlegen,
   einkaufWareneingangBuchen,
@@ -106,6 +107,11 @@ export default function Einkauf() {
     try {
       const posMap = positionen.filter(p => p.bezeichnung || p.artikel_id)
       await einkaufWareneingangBuchen({ bestellung_id: selectedBeleg.id, lieferdatum: form.lieferdatum, lieferscheinnr: form.lieferscheinnr, positionen_geliefert: posMap, erstellt_von: erpUser?.id })
+      // BtM-Buch (§13 BtMVV): physischer Wareneingang. Nur BtM-pflichtige
+      // Artikel werden tatsächlich gebucht — bucheBtMBewegung prüft das selbst.
+      await bucheBtMBewegungenFuerPositionen('zugang', posMap, {
+        partnerId: selectedBeleg.lieferant_id, belegnr: form.lieferscheinnr, userId: erpUser?.id,
+      })
       setMsg({ ok: true, text: 'Wareneingang gebucht! Bestand erhöht, Bestellung archiviert.' })
       setTimeout(() => { setModal(null); load() }, 1800)
     } catch(e) { setMsg({ ok: false, text: e.message }) }
