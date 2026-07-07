@@ -1,5 +1,7 @@
 # Clavissimo
 
+![Clavissimo](./app/public/clavissimo-banner.png)
+
 Schlankes ERP für Cannabis-Unternehmen (MedCanG). Details siehe [`CLAVISSIMO_SPEC.md`](./CLAVISSIMO_SPEC.md).
 
 ## Struktur
@@ -51,7 +53,31 @@ Partnerstamm, BtM-Buch, Erlaubnis-Monitor, eQMS, Personal.
 aus der Spec (BtM-Bestand, ablaufende Erlaubnisse, Meldepflichten)
 fehlen noch.
 
-## Deployment
+## Deployment (GitHub Pages)
 
-Siehe Chat-Verlauf für die ausführliche Schritt-für-Schritt-Anleitung
-(GitHub → Supabase → Render.com → Cloudflare Pages).
+1. Im Repo unter **Settings → Pages** → "Build and deployment" → Source
+   auf **GitHub Actions** stellen.
+2. Unter **Settings → Secrets and variables → Actions** zwei Secrets anlegen:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+3. Push auf `main` — der Workflow `.github/workflows/deploy.yml` baut
+   `app/` und deployt automatisch nach `https://DEIN-USER.github.io/Clavissimo/`.
+4. Der Proxy (`proxy/`) läuft weiterhin separat (z.B. Render.com) — GitHub
+   Pages kann keine Node.js-Server hosten, nur statische Dateien.
+
+`vite.config.js` hat `base: '/Clavissimo/'` fest eingetragen — falls das
+Repo mal umbenannt wird, hier anpassen.
+
+## Branding-Assets (app/public/)
+
+Aus dem hochgeladenen Logo automatisch freigestellt (Schachbrett-
+Transparenz-Marker entfernt) und in mehreren Varianten abgelegt:
+
+| Datei | Verwendung |
+|---|---|
+| `clavis-logo.png` | Vollständiges Logo mit Schriftzug (transparent) |
+| `clavis-icon.png` | Nur die Grafik ohne Schriftzug (transparent), z.B. Header |
+| `icon-192.png` / `icon-512.png` | Quadratisch mit dunkelgrünem Hintergrund, für PWA-Manifest/App-Icon |
+| `favicon.png` | Kleine quadratische Version für den Browser-Tab |
+| `clavissimo-wallpaper.png` | Hintergrundbild für Login-/Setup-Screen |
+| `clavissimo-banner.png` | Hero-/Social-Preview-Bild (README, og:image, Twitter Card) — hat einen fest eingebrannten Hintergrund, deshalb NICHT für UI-Icons verwendet |

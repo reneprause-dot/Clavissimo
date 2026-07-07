@@ -26,15 +26,17 @@ export default function LoginScreen() {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--bg-primary,#F5F8F4)', fontFamily: "'IBM Plex Mono',monospace", padding: '1rem',
+      background: `linear-gradient(rgba(18,58,34,0.55),rgba(18,58,34,0.55)), url(${import.meta.env.BASE_URL}clavissimo-wallpaper.png) center/cover`,
+      fontFamily: "'IBM Plex Mono',monospace", padding: '1rem',
     }}>
       <div style={{
         width: '100%', maxWidth: 380, background: 'var(--card-bg,#fff)',
         border: '1px solid var(--border,#DCE6DC)', borderRadius: 14, padding: '2rem',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <div style={{ fontSize: '2rem' }}>🌿</div>
-          <h1 style={{ margin: '0.4rem 0 0', fontSize: '1.1rem', color: 'var(--text-primary,#17241A)' }}>
+          <img src={`${import.meta.env.BASE_URL}clavis-icon.png`} alt="Clavissimo" style={{ width: 72, height: 'auto' }} />
+          <h1 style={{ margin: '0.6rem 0 0', fontSize: '1.1rem', color: 'var(--text-primary,#17241A)' }}>
             {BUILD_INFO.produkt}
           </h1>
           <p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted,#748575)' }}>

@@ -101,7 +101,7 @@ export default function AppLayout({ currentView, onNavigate, onSuche, children }
           display:'flex', alignItems:'center', gap:'0.5rem', background:'none', border:'none', cursor:'pointer',
           padding:'0.4rem 0.6rem', marginRight:'0.5rem', flexShrink:0,
         }}>
-          <img src={`${import.meta.env.BASE_URL}clavis-logo.png`} alt="Clavissimo" style={{ width:26, height:26, objectFit:'contain', borderRadius:6 }} />
+          <img src={`${import.meta.env.BASE_URL}clavis-icon.png`} alt="Clavissimo" style={{ width:30, height:30, objectFit:'contain' }} />
           <span style={{ color:'#EAF3EC', fontWeight:700, fontSize:'0.85rem', letterSpacing:'0.2px' }}>Clavissimo</span>
         </button>
 
