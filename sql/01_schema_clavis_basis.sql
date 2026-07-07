@@ -1,0 +1,40 @@
+-- ============================================================
+-- Clavissimo – SQL Teil 1: Basis-Schema aus Clavis ERP
+-- ============================================================
+-- Diese Tabellen werden 1:1 aus deinem Clavis-ERP-Supabase-Projekt
+-- übernommen (siehe CLAVISSIMO_SPEC.md, Abschnitt "Datenbankschema").
+-- Hier NICHT im Detail neu definiert, da CREATE TABLE-Statements mit
+-- exakten Spalten/Constraints aus deinem bestehenden Clavis-ERP-Projekt
+-- kommen sollten (pg_dump oder Supabase "Export schema").
+--
+-- Vorgehen:
+--   1. In deinem BESTEHENDEN Clavis-ERP-Supabase-Projekt:
+--      Project Settings → Database → Backups → "Schema" exportieren,
+--      oder gezielt per pg_dump --schema-only für nur diese Tabellen:
+--
+--   artikel, geschaeftspartner, konten, chargen, artikelbewegungen,
+--   lagerorte, buchungen, verkaufsbelege, einkaufsbelege, offene_posten,
+--   gobd_perioden, gobd_protokoll, qm_dokumente, qm_schulungen,
+--   qm_schulungsnachweise, temperatur_protokoll, temperatur_zonen,
+--   erp_users, mandanten, nummernserien, einstellungen, erp_module
+--
+--   2. Ergebnis hier einfügen bzw. direkt im neuen Clavissimo-
+--      Supabase-Projekt im SQL-Editor ausführen.
+--
+-- Wichtig: erp_module braucht mindestens diese Spalten (wird von
+-- ModuleContext.jsx / Einstellungen.jsx genutzt):
+--
+--   CREATE TABLE erp_module (
+--     modul_key    TEXT PRIMARY KEY,
+--     bezeichnung  TEXT,
+--     aktiv        BOOLEAN DEFAULT false
+--   );
+--
+-- Und einstellungen (Key/Value, wird auch vom Wartungsvertrag-Hinweis
+-- genutzt):
+--
+--   CREATE TABLE einstellungen (
+--     key    TEXT PRIMARY KEY,
+--     value  TEXT
+--   );
+-- ============================================================
