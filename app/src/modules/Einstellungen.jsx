@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { useModules } from '../context/ModuleContext'
 import { MODUL_REGISTRY } from '../lib/modulDefinitionen'
 import WartungsvertragEinstellung from './WartungsvertragEinstellung'
+import OptionslisteVerwaltung from './OptionslisteVerwaltung'
 
 export default function Einstellungen() {
   const { hasRole } = useAuth()
@@ -41,6 +42,20 @@ export default function Einstellungen() {
       </div>
 
       <WartungsvertragEinstellung />
+
+      <div>
+        <h3 style={{ margin: '0 0 0.9rem', fontSize: '0.95rem', color: 'var(--text-primary,#17241A)' }}>
+          🗂️ Stammdaten-Listen (Artikelkarte)
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+          <OptionslisteVerwaltung tabelle="artikel_kategorien" label="Kategorie" icon="🗂️" />
+          <OptionslisteVerwaltung tabelle="sorten" label="Sorte" icon="🌿" />
+          <OptionslisteVerwaltung tabelle="medcang_kategorien" label="MedCanG-Kategorie" icon="🌿" />
+          <OptionslisteVerwaltung tabelle="amg_kategorien" label="AMG-Kategorie" icon="⚕️" />
+          <OptionslisteVerwaltung tabelle="gmp_klassen" label="GMP-Klasse" icon="✅" />
+          <OptionslisteVerwaltung tabelle="temperaturklassen" label="Temperaturklasse" icon="🌡️" />
+        </div>
+      </div>
     </div>
   )
 }

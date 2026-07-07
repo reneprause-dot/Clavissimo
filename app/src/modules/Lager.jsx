@@ -2,11 +2,18 @@ import { useEffect, useState } from 'react'
 import { getSupabaseClient } from '../lib/supabase'
 import { dbCall } from '../lib/dbHelper'
 import { useAuth } from '../context/AuthContext'
+import { ladeOptionen, nurAktive } from '../lib/optionsListen'
 
 export default function Lager() {
   const { hasRole } = useAuth()
   const [artikel, setArtikel] = useState([])
   const [einheiten, setEinheiten] = useState([])
+  const [kategorien, setKategorien] = useState([])
+  const [sorten, setSorten] = useState([])
+  const [medcangKategorien, setMedcangKategorien] = useState([])
+  const [amgKategorien, setAmgKategorien] = useState([])
+  const [gmpKlassen, setGmpKlassen] = useState([])
+  const [temperaturklassen, setTemperaturklassen] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -30,12 +37,24 @@ export default function Lager() {
 
   const load = async () => {
     const sb = getSupabaseClient()
-    const [artikelRes, einheitenRes] = await Promise.all([
+    const [artikelRes, einheitenRes, kat, sor, medcang, amg, gmp, temp] = await Promise.all([
       dbCall(sb.from('artikel').select('*').order('artikelnr'), 'Lager: artikel'),
       dbCall(sb.from('einheiten').select('*').eq('aktiv', true).order('sortierung'), 'Lager: einheiten'),
+      ladeOptionen('artikel_kategorien'),
+      ladeOptionen('sorten'),
+      ladeOptionen('medcang_kategorien'),
+      ladeOptionen('amg_kategorien'),
+      ladeOptionen('gmp_klassen'),
+      ladeOptionen('temperaturklassen'),
     ])
     setArtikel(artikelRes.data || [])
     setEinheiten(einheitenRes.data || [])
+    setKategorien(nurAktive(kat))
+    setSorten(nurAktive(sor))
+    setMedcangKategorien(nurAktive(medcang))
+    setAmgKategorien(nurAktive(amg))
+    setGmpKlassen(nurAktive(gmp))
+    setTemperaturklassen(nurAktive(temp))
     setLoading(false)
   }
 
@@ -100,12 +119,20 @@ export default function Lager() {
           <h3 style={{ margin: '0 0 1.25rem', color: 'var(--accent-light,#60a5fa)', fontSize: '1rem' }}>{editing ? 'Artikel bearbeiten' : 'Neuer Artikel'}</h3>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
-            {[['artikelnr','Artikelnummer *'],['bezeichnung','Bezeichnung *'],['beschreibung','Beschreibung'],['kategorie','Kategorie'],['lagerort','Lagerort']].map(([field, label]) => (
+            {[['artikelnr','Artikelnummer *'],['bezeichnung','Bezeichnung *'],['beschreibung','Beschreibung'],['lagerort','Lagerort']].map(([field, label]) => (
               <div key={field} style={field==='bezeichnung'||field==='beschreibung'?{gridColumn:'span 2'}:{}}>
                 <label style={lbl}>{label}</label>
                 <input value={form[field]} onChange={e => setForm({...form,[field]:e.target.value})} style={inp} />
               </div>
             ))}
+            <div>
+              <label style={lbl}>Kategorie</label>
+              <select value={form.kategorie} onChange={e => setForm({...form, kategorie: e.target.value})} style={inp}>
+                <option value="">– keine Auswahl –</option>
+                {form.kategorie && !kategorien.some(o=>o.bezeichnung===form.kategorie) && <option value={form.kategorie}>{form.kategorie} (inaktiv)</option>}
+                  {kategorien.map(k => <option key={k.id} value={k.bezeichnung}>{k.bezeichnung}</option>)}
+              </select>
+            </div>
             <div>
               <label style={lbl}>Einheit</label>
               <select value={form.einheit} onChange={e => setForm({...form, einheit: e.target.value})} style={inp}>
@@ -125,12 +152,54 @@ export default function Lager() {
           <div style={{ marginTop: '1.25rem', paddingTop: '1.1rem', borderTop: '1px dashed var(--border,#2d3748)' }}>
             <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: 'var(--success,#16A34A)' }}>🌿 MedCanG-Angaben</h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
-              {[['pzn','PZN'],['sorte','Sorte'],['medcang_kategorie','MedCanG-Kategorie'],['amg_kategorie','AMG-Kategorie'],['amg_zulassungsnummer','AMG-Zulassungsnr.'],['gmp_klasse','GMP-Klasse'],['temperaturklasse','Temperaturklasse']].map(([field,label]) => (
-                <div key={field}>
-                  <label style={lbl}>{label}</label>
-                  <input value={form[field]} onChange={e => setForm({...form,[field]:e.target.value})} style={inp} />
-                </div>
-              ))}
+              <div>
+                <label style={lbl}>PZN</label>
+                <input value={form.pzn} onChange={e => setForm({...form, pzn: e.target.value})} style={inp} />
+              </div>
+              <div>
+                <label style={lbl}>Sorte</label>
+                <select value={form.sorte} onChange={e => setForm({...form, sorte: e.target.value})} style={inp}>
+                  <option value="">– keine Auswahl –</option>
+                  {form.sorte && !sorten.some(o=>o.bezeichnung===form.sorte) && <option value={form.sorte}>{form.sorte} (inaktiv)</option>}
+                  {sorten.map(o => <option key={o.id} value={o.bezeichnung}>{o.bezeichnung}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>MedCanG-Kategorie</label>
+                <select value={form.medcang_kategorie} onChange={e => setForm({...form, medcang_kategorie: e.target.value})} style={inp}>
+                  <option value="">– keine Auswahl –</option>
+                  {form.medcang_kategorie && !medcangKategorien.some(o=>o.bezeichnung===form.medcang_kategorie) && <option value={form.medcang_kategorie}>{form.medcang_kategorie} (inaktiv)</option>}
+                  {medcangKategorien.map(o => <option key={o.id} value={o.bezeichnung}>{o.bezeichnung}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>AMG-Kategorie</label>
+                <select value={form.amg_kategorie} onChange={e => setForm({...form, amg_kategorie: e.target.value})} style={inp}>
+                  <option value="">– keine Auswahl –</option>
+                  {form.amg_kategorie && !amgKategorien.some(o=>o.bezeichnung===form.amg_kategorie) && <option value={form.amg_kategorie}>{form.amg_kategorie} (inaktiv)</option>}
+                  {amgKategorien.map(o => <option key={o.id} value={o.bezeichnung}>{o.bezeichnung}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>AMG-Zulassungsnr.</label>
+                <input value={form.amg_zulassungsnummer} onChange={e => setForm({...form, amg_zulassungsnummer: e.target.value})} style={inp} />
+              </div>
+              <div>
+                <label style={lbl}>GMP-Klasse</label>
+                <select value={form.gmp_klasse} onChange={e => setForm({...form, gmp_klasse: e.target.value})} style={inp}>
+                  <option value="">– keine Auswahl –</option>
+                  {form.gmp_klasse && !gmpKlassen.some(o=>o.bezeichnung===form.gmp_klasse) && <option value={form.gmp_klasse}>{form.gmp_klasse} (inaktiv)</option>}
+                  {gmpKlassen.map(o => <option key={o.id} value={o.bezeichnung}>{o.bezeichnung}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Temperaturklasse</label>
+                <select value={form.temperaturklasse} onChange={e => setForm({...form, temperaturklasse: e.target.value})} style={inp}>
+                  <option value="">– keine Auswahl –</option>
+                  {form.temperaturklasse && !temperaturklassen.some(o=>o.bezeichnung===form.temperaturklasse) && <option value={form.temperaturklasse}>{form.temperaturklasse} (inaktiv)</option>}
+                  {temperaturklassen.map(o => <option key={o.id} value={o.bezeichnung}>{o.bezeichnung}</option>)}
+                </select>
+              </div>
               {[['thc_gehalt','THC-Gehalt (%)'],['cbd_gehalt','CBD-Gehalt (%)'],['haltbarkeit_tage','Haltbarkeit (Tage)']].map(([field,label]) => (
                 <div key={field}>
                   <label style={lbl}>{label}</label>
