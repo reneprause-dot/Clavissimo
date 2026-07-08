@@ -4,10 +4,10 @@
  * offene Meldepflichten (btm_meldungen) sind noch TODO — siehe Hinweis
  * unten (Dashboard-Kachel dafür fehlt noch, Datenbasis existiert).
  */
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { ladeAblaufendeErlaubnisse } from '../lib/medcangCompliance'
-import { ladeBtmBestand, pruefeAktuelleMeldung, ladeGesamtBestand } from '../lib/dashboardKpis'
+import { ladeBtmBestand, pruefeAktuelleMeldung, ladeGesamtBestand, ladeChargenProArtikel } from '../lib/dashboardKpis'
 import BUILD_INFO from '../lib/buildInfo'
 
 export default function Dashboard() {
@@ -16,6 +16,8 @@ export default function Dashboard() {
   const [btmBestand, setBtmBestand] = useState(null)
   const [meldung, setMeldung] = useState(null)
   const [bestandsliste, setBestandsliste] = useState(null)
+  const [chargenMap, setChargenMap] = useState({})
+  const [aufgeklappt, setAufgeklappt] = useState({}) // artikel_id -> bool
   const [suche, setSuche] = useState('')
   const [nurKritisch, setNurKritisch] = useState(false)
 
@@ -24,7 +26,10 @@ export default function Dashboard() {
     ladeBtmBestand().then(setBtmBestand)
     pruefeAktuelleMeldung().then(setMeldung)
     ladeGesamtBestand().then(setBestandsliste)
+    ladeChargenProArtikel().then(setChargenMap)
   }, [])
+
+  const toggleAufklappen = (artikelId) => setAufgeklappt(prev => ({ ...prev, [artikelId]: !prev[artikelId] }))
 
   return (
     <div style={{ padding: '1.5rem' }}>
@@ -133,31 +138,83 @@ export default function Dashboard() {
             <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead><tr style={{ position: 'sticky', top: 0, background: 'var(--card-bg,#fff)' }}>
-                  {['Artikel', 'Lagerort', 'Bestand', 'Mindest', 'Status'].map(h => (
+                  {['Artikel', 'Lagerort', 'Bestand', 'Mindest', 'Chargen', 'Status'].map(h => (
                     <th key={h} style={{ padding: '0.5rem 0.7rem', textAlign: 'left', color: 'var(--text-muted,#748575)', fontWeight: 600, fontSize: '0.66rem', textTransform: 'uppercase', borderBottom: '1px solid var(--border,#DCE6DC)' }}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
                   {gefiltert.map(a => {
                     const kritisch = a.mindestbestand > 0 && a.bestand <= a.mindestbestand
+                    const chargenListe = chargenMap[a.id] || []
+                    const offen = aufgeklappt[a.id]
                     return (
-                      <tr key={a.id} style={{ borderTop: '1px solid var(--border,#DCE6DC)' }}>
-                        <td style={{ padding: '0.5rem 0.7rem', color: 'var(--text-primary,#17241A)' }}>
-                          {a.bezeichnung}
-                          {a.btm_pflichtig && <span style={{ marginLeft: '0.4rem', fontSize: '0.62rem', fontWeight: 700, background: 'var(--warning,#B4650F)18', color: 'var(--warning,#B4650F)', padding: '0.05rem 0.35rem', borderRadius: 4 }}>BtM</span>}
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted,#748575)' }}>{a.artikelnr}</div>
-                        </td>
-                        <td style={{ padding: '0.5rem 0.7rem', color: 'var(--text-secondary,#3E4E40)', fontSize: '0.75rem' }}>{a.lagerort || '–'}</td>
-                        <td style={{ padding: '0.5rem 0.7rem', fontFamily: 'monospace', fontWeight: 600, color: kritisch ? 'var(--danger,#B3261E)' : 'var(--text-primary,#17241A)' }}>{a.bestand} {a.einheit}</td>
-                        <td style={{ padding: '0.5rem 0.7rem', fontFamily: 'monospace', color: 'var(--text-muted,#748575)' }}>{a.mindestbestand || 0}</td>
-                        <td style={{ padding: '0.5rem 0.7rem' }}>
-                          {kritisch ? (
-                            <span style={{ background: 'var(--danger,#B3261E)18', color: 'var(--danger,#B3261E)', padding: '0.1rem 0.5rem', borderRadius: 4, fontSize: '0.68rem', fontWeight: 600 }}>⚠ Unter Mindest</span>
-                          ) : (
-                            <span style={{ background: 'var(--success,#16A34A)18', color: 'var(--success,#16A34A)', padding: '0.1rem 0.5rem', borderRadius: 4, fontSize: '0.68rem' }}>✓ OK</span>
-                          )}
-                        </td>
-                      </tr>
+                      <Fragment key={a.id}>
+                        <tr style={{ borderTop: '1px solid var(--border,#DCE6DC)' }}>
+                          <td style={{ padding: '0.5rem 0.7rem', color: 'var(--text-primary,#17241A)' }}>
+                            {a.bezeichnung}
+                            {a.btm_pflichtig && <span style={{ marginLeft: '0.4rem', fontSize: '0.62rem', fontWeight: 700, background: 'var(--warning,#B4650F)18', color: 'var(--warning,#B4650F)', padding: '0.05rem 0.35rem', borderRadius: 4 }}>BtM</span>}
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted,#748575)' }}>{a.artikelnr}</div>
+                          </td>
+                          <td style={{ padding: '0.5rem 0.7rem', color: 'var(--text-secondary,#3E4E40)', fontSize: '0.75rem' }}>{a.lagerort || '–'}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', fontFamily: 'monospace', fontWeight: 600, color: kritisch ? 'var(--danger,#B3261E)' : 'var(--text-primary,#17241A)' }}>{a.bestand} {a.einheit}</td>
+                          <td style={{ padding: '0.5rem 0.7rem', fontFamily: 'monospace', color: 'var(--text-muted,#748575)' }}>{a.mindestbestand || 0}</td>
+                          <td style={{ padding: '0.5rem 0.7rem' }}>
+                            {a.btm_pflichtig ? (
+                              chargenListe.length > 0 ? (
+                                <button onClick={() => toggleAufklappen(a.id)} style={{ background: 'none', border: '1px solid var(--border,#DCE6DC)', borderRadius: 6, padding: '0.15rem 0.55rem', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.72rem', color: 'var(--accent,#16A34A)' }}>
+                                  {offen ? '▾' : '▸'} {chargenListe.length} Charge{chargenListe.length !== 1 ? 'n' : ''}
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '0.7rem', color: 'var(--warning,#B4650F)' }}>⚠ keine Charge</span>
+                              )
+                            ) : (
+                              <span style={{ color: 'var(--text-muted,#748575)', fontSize: '0.72rem' }}>–</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '0.5rem 0.7rem' }}>
+                            {kritisch ? (
+                              <span style={{ background: 'var(--danger,#B3261E)18', color: 'var(--danger,#B3261E)', padding: '0.1rem 0.5rem', borderRadius: 4, fontSize: '0.68rem', fontWeight: 600 }}>⚠ Unter Mindest</span>
+                            ) : (
+                              <span style={{ background: 'var(--success,#16A34A)18', color: 'var(--success,#16A34A)', padding: '0.1rem 0.5rem', borderRadius: 4, fontSize: '0.68rem' }}>✓ OK</span>
+                            )}
+                          </td>
+                        </tr>
+                        {offen && chargenListe.length > 0 && (
+                          <tr key={`${a.id}-chargen`}>
+                            <td colSpan={6} style={{ padding: '0 0.7rem 0.6rem', background: 'var(--bg-primary,#F5F8F4)' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.74rem', marginTop: '0.3rem' }}>
+                                <thead><tr>
+                                  {['Charge', 'Bestand', 'MHD', 'Lagerort', 'Status'].map(h => (
+                                    <th key={h} style={{ padding: '0.3rem 0.6rem', textAlign: 'left', color: 'var(--text-muted,#748575)', fontWeight: 600, fontSize: '0.62rem', textTransform: 'uppercase' }}>{h}</th>
+                                  ))}
+                                </tr></thead>
+                                <tbody>
+                                  {chargenListe.map(c => {
+                                    const mhdAbgelaufen = c.mhd && new Date(c.mhd) < new Date()
+                                    return (
+                                      <tr key={c.id} style={{ borderTop: '1px solid var(--border,#DCE6DC)' }}>
+                                        <td style={{ padding: '0.3rem 0.6rem', fontFamily: 'monospace', color: 'var(--text-primary,#17241A)' }}>{c.chargennr}</td>
+                                        <td style={{ padding: '0.3rem 0.6rem', fontFamily: 'monospace' }}>{c.bestand}</td>
+                                        <td style={{ padding: '0.3rem 0.6rem', fontFamily: 'monospace', color: mhdAbgelaufen ? 'var(--danger,#B3261E)' : 'var(--text-secondary,#3E4E40)' }}>
+                                          {c.mhd ? new Date(c.mhd).toLocaleDateString('de-DE') : '–'}{mhdAbgelaufen ? ' ⚠' : ''}
+                                        </td>
+                                        <td style={{ padding: '0.3rem 0.6rem', color: 'var(--text-secondary,#3E4E40)' }}>{c.lagerort?.bezeichnung || '–'}</td>
+                                        <td style={{ padding: '0.3rem 0.6rem' }}>
+                                          <span style={{
+                                            padding: '0.05rem 0.4rem', borderRadius: 4, fontSize: '0.64rem', fontWeight: 600,
+                                            background: c.status === 'freigegeben' ? 'var(--success,#16A34A)18' : c.status === 'gesperrt' ? 'var(--danger,#B3261E)18' : 'var(--text-muted,#748575)18',
+                                            color: c.status === 'freigegeben' ? 'var(--success,#16A34A)' : c.status === 'gesperrt' ? 'var(--danger,#B3261E)' : 'var(--text-muted,#748575)',
+                                          }}>{c.status}</span>
+                                        </td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     )
                   })}
                 </tbody>
