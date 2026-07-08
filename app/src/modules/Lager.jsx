@@ -16,6 +16,7 @@ export default function Lager() {
   const [gmpKlassen, setGmpKlassen] = useState([])
   const [temperaturklassen, setTemperaturklassen] = useState([])
   const [lagerorte, setLagerorte] = useState([])
+  const [chargenMap, setChargenMap] = useState({}) // artikel_id -> chargen[]
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -39,7 +40,7 @@ export default function Lager() {
 
   const load = async () => {
     const sb = getSupabaseClient()
-    const [artikelRes, einheitenRes, kat, sor, medcang, amg, gmp, temp, lo] = await Promise.all([
+    const [artikelRes, einheitenRes, kat, sor, medcang, amg, gmp, temp, lo, ch] = await Promise.all([
       dbCall(sb.from('artikel').select('*').order('artikelnr'), 'Lager: artikel'),
       dbCall(sb.from('einheiten').select('*').eq('aktiv', true).order('sortierung'), 'Lager: einheiten'),
       ladeOptionen('artikel_kategorien'),
@@ -49,6 +50,7 @@ export default function Lager() {
       ladeOptionen('gmp_klassen'),
       ladeOptionen('temperaturklassen'),
       dbCall(sb.from('lagerorte').select('*').eq('aktiv', true).order('sortierung'), 'Lager: lagerorte'),
+      dbCall(sb.from('chargen').select('id,artikel_id,chargennr,bestand,mhd,status,lagerort:lagerorte(bezeichnung)').gt('bestand', 0).order('mhd', { ascending: true, nullsFirst: false }), 'Lager: chargen'),
     ])
     setArtikel(artikelRes.data || [])
     setEinheiten(einheitenRes.data || [])
@@ -59,6 +61,9 @@ export default function Lager() {
     setGmpKlassen(nurAktive(gmp))
     setTemperaturklassen(nurAktive(temp))
     setLagerorte(lo.data || [])
+    const map = {}
+    ;(ch.data || []).forEach(c => { if (!map[c.artikel_id]) map[c.artikel_id] = []; map[c.artikel_id].push(c) })
+    setChargenMap(map)
     setLoading(false)
   }
 
@@ -280,17 +285,54 @@ export default function Lager() {
 
       {activeTab === 'bestand' && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:'1rem' }}>
-          {filtered.filter(a=>a.aktiv).map(a => (
-            <div key={a.id} style={{ background:'var(--bg-secondary,#1a1f2e)', border:`1px solid ${a.bestand<=a.mindestbestand&&a.mindestbestand>0?'var(--danger,#dc2626)':'var(--border,#2d3748)'}`, borderRadius:10, padding:'1rem' }}>
-              <div style={{fontWeight:600,color:'var(--text-primary,#e2e8f0)',marginBottom:'0.25rem'}}>{a.bezeichnung}</div>
-              <div style={{color:'var(--text-muted,#475569)',fontSize:'0.75rem',marginBottom:'0.75rem'}}>{a.artikelnr}</div>
-              <div style={{fontSize:'2rem',fontWeight:700,color:a.bestand<=a.mindestbestand&&a.mindestbestand>0?'var(--danger,#ef4444)':'var(--success,#10b981)'}}>{(a.bestand||0).toFixed(0)}</div>
-              <div style={{color:'var(--text-muted,#475569)',fontSize:'0.75rem'}}>{a.einheit} · Mind.: {a.mindestbestand||0}</div>
-              <div style={{marginTop:'0.5rem',height:4,background:'var(--border,#1e293b)',borderRadius:2}}>
-                <div style={{width:`${Math.min(100,(a.bestand/(a.mindestbestand*2||1))*100)}%`,height:'100%',background:a.bestand<=a.mindestbestand&&a.mindestbestand>0?'var(--danger,#dc2626)':'var(--success,#10b981)',borderRadius:2,transition:'width 0.3s'}} />
+          {filtered.filter(a=>a.aktiv).flatMap(a => {
+            const kritisch = a.bestand<=a.mindestbestand && a.mindestbestand>0
+            const chargenListe = chargenMap[a.id] || []
+
+            // Artikel MIT Chargen: eine Kachel PRO Charge statt einer
+            // Sammelkachel — zeigt Chargennummer, MHD und Status je Charge.
+            if (chargenListe.length > 0) {
+              return chargenListe.map(c => {
+                const mhdAbgelaufen = c.mhd && new Date(c.mhd) < new Date()
+                const statusFarbe = c.status==='freigegeben' ? 'var(--success,#16A34A)' : c.status==='gesperrt' ? 'var(--danger,#dc2626)' : 'var(--text-muted,#748575)'
+                return (
+                  <div key={`${a.id}-${c.id}`} style={{ background:'var(--card-bg,var(--bg-secondary,#1a1f2e))', border:`1px solid ${kritisch?'var(--danger,#dc2626)':statusFarbe+'55'}`, borderRadius:10, padding:'1rem' }}>
+                    <div style={{fontWeight:600,color:'var(--text-primary,#e2e8f0)',marginBottom:'0.15rem'}}>{a.bezeichnung}</div>
+                    <div style={{color:'var(--text-muted,#475569)',fontSize:'0.72rem',marginBottom:'0.5rem'}}>{a.artikelnr}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', marginBottom:'0.5rem' }}>
+                      <span style={{ fontFamily:'monospace', fontSize:'0.75rem', fontWeight:700, color:'var(--accent,#16A34A)', background:'var(--accent,#16A34A)18', padding:'0.1rem 0.45rem', borderRadius:5 }}>🏷️ {c.chargennr}</span>
+                      <span style={{ fontSize:'0.65rem', fontWeight:600, color:statusFarbe, background:statusFarbe+'18', padding:'0.05rem 0.4rem', borderRadius:4 }}>{c.status}</span>
+                    </div>
+                    <div style={{fontSize:'1.7rem',fontWeight:700,color:kritisch?'var(--danger,#ef4444)':'var(--text-primary,#e2e8f0)'}}>{(c.bestand||0).toFixed(2)}</div>
+                    <div style={{color:'var(--text-muted,#475569)',fontSize:'0.72rem'}}>{a.einheit}{c.lagerort && ` · 📍 ${c.lagerort.bezeichnung}`}</div>
+                    {c.mhd && (
+                      <div style={{ fontSize:'0.7rem', marginTop:'0.35rem', color: mhdAbgelaufen ? 'var(--danger,#ef4444)' : 'var(--text-muted,#475569)' }}>
+                        MHD: {new Date(c.mhd).toLocaleDateString('de-DE')}{mhdAbgelaufen ? ' ⚠ abgelaufen' : ''}
+                      </div>
+                    )}
+                    {kritisch && <div style={{ fontSize:'0.68rem', color:'var(--danger,#ef4444)', marginTop:'0.35rem' }}>⚠ Artikel-Gesamtbestand unter Mindest ({a.bestand}/{a.mindestbestand})</div>}
+                  </div>
+                )
+              })
+            }
+
+            // Artikel OHNE Chargen (nicht BtM-pflichtig, oder BtM ohne
+            // erfasste Charge): wie bisher eine Sammelkachel.
+            return [(
+              <div key={a.id} style={{ background:'var(--card-bg,var(--bg-secondary,#1a1f2e))', border:`1px solid ${kritisch?'var(--danger,#dc2626)':'var(--border,#2d3748)'}`, borderRadius:10, padding:'1rem' }}>
+                <div style={{fontWeight:600,color:'var(--text-primary,#e2e8f0)',marginBottom:'0.25rem'}}>{a.bezeichnung}</div>
+                <div style={{color:'var(--text-muted,#475569)',fontSize:'0.75rem',marginBottom:'0.75rem'}}>
+                  {a.artikelnr}
+                  {a.btm_pflichtig && <span style={{ marginLeft:'0.4rem', color:'var(--warning,#B4650F)' }}>⚠ keine Charge</span>}
+                </div>
+                <div style={{fontSize:'2rem',fontWeight:700,color:kritisch?'var(--danger,#ef4444)':'var(--success,#10b981)'}}>{(a.bestand||0).toFixed(0)}</div>
+                <div style={{color:'var(--text-muted,#475569)',fontSize:'0.75rem'}}>{a.einheit} · Mind.: {a.mindestbestand||0}</div>
+                <div style={{marginTop:'0.5rem',height:4,background:'var(--border,#1e293b)',borderRadius:2}}>
+                  <div style={{width:`${Math.min(100,(a.bestand/(a.mindestbestand*2||1))*100)}%`,height:'100%',background:kritisch?'var(--danger,#dc2626)':'var(--success,#10b981)',borderRadius:2,transition:'width 0.3s'}} />
+                </div>
               </div>
-            </div>
-          ))}
+            )]
+          })}
         </div>
       )}
     </div>
