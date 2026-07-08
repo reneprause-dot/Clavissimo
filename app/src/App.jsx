@@ -15,6 +15,7 @@ import MedCanG from './modules/MedCanG'
 import MedCanGPharma from './modules/MedCanGPharma'
 import BtmBuch from './modules/BtmBuch'
 import Buchhaltung from './modules/Buchhaltung'
+import Mahnwesen from './modules/Mahnwesen'
 import Einstellungen from './modules/Einstellungen'
 import Nutzerverwaltung from './modules/Nutzerverwaltung'
 import Platzhalter from './modules/Platzhalter'
@@ -29,7 +30,7 @@ const MODULE_COMPONENTS = {
   einkauf: Einkauf,
   verkauf: Verkauf,
   buchhaltung: Buchhaltung,
-  mahnwesen: () => <Platzhalter titel="Mahnwesen" icon="📨" />,
+  mahnwesen: Mahnwesen,
   datev: () => <Platzhalter titel="DATEV Export" icon="📤" />,
   gobd: () => <Platzhalter titel="GoBD-Konformität" icon="🔒" />,
   medcang: MedCanGPharma,

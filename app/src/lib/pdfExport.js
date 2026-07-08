@@ -28,6 +28,59 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]))
 }
 
+const MAHN_TEXTE = {
+  1: { titel: 'Zahlungserinnerung', text: 'wir möchten Sie freundlich darauf hinweisen, dass die untenstehende Rechnung noch offen ist. Vermutlich haben Sie die Zahlung schlicht übersehen — falls die Zahlung bereits erfolgt ist, betrachten Sie dieses Schreiben als gegenstandslos.' },
+  2: { titel: '1. Mahnung', text: 'trotz Zahlungserinnerung ist die untenstehende Rechnung weiterhin offen. Wir bitten Sie, den fälligen Betrag umgehend zu begleichen.' },
+  3: { titel: '2. Mahnung', text: 'die untenstehende Rechnung ist trotz mehrfacher Erinnerung weiterhin unbeglichen. Wir bitten Sie letztmalig, den Betrag innerhalb von 7 Tagen zu begleichen, um weitere Schritte zu vermeiden.' },
+}
+
+export function druckMahnung({ op, stufe, firma = {} }) {
+  const partner = op.partner || {}
+  const info = MAHN_TEXTE[stufe] || MAHN_TEXTE[1]
+
+  const html = `<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<title>${esc(info.titel)} ${esc(op.belegnr||'')}</title>
+<style>
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color:#17241A; padding: 40px; max-width: 800px; margin:0 auto; font-size:13px; }
+  h1 { font-size: 20px; margin: 0 0 20px; color:#B4650F; }
+  .kopf { margin-bottom: 28px; }
+  table { width:100%; border-collapse:collapse; margin: 20px 0; }
+  th { text-align:left; font-size:10px; text-transform:uppercase; color:#748575; border-bottom:2px solid #DCE6DC; padding:6px 8px; }
+  td { padding:8px; border-bottom:1px solid #DCE6DC; }
+  .betrag { font-weight:700; font-size:16px; color:#B3261E; text-align:right; margin-top:16px; }
+  @media print { body { padding:0; } }
+</style>
+</head><body>
+  <div class="kopf">
+    ${esc(firma.name||'')}<br>${esc(firma.strasse||'')}<br>${esc(firma.plz||'')} ${esc(firma.ort||'')}
+  </div>
+  <p>${esc(partner.name||'')}<br>${esc(partner.strasse||'')}<br>${esc(partner.plz||'')} ${esc(partner.ort||'')}</p>
+
+  <h1>${esc(info.titel)}</h1>
+  <p>Sehr geehrte Damen und Herren,</p>
+  <p>${esc(info.text)}</p>
+
+  <table>
+    <thead><tr><th>Beleg</th><th>Fällig seit</th><th style="text-align:right">Betrag</th></tr></thead>
+    <tbody>
+      <tr><td>${esc(op.belegnr||'–')}</td><td>${fmtDatum(op.faelligkeitsdatum)}</td><td style="text-align:right">€ ${fmtEuro(op.offen)}</td></tr>
+    </tbody>
+  </table>
+
+  <div class="betrag">Offener Betrag: € ${fmtEuro(op.offen)}</div>
+
+  <p style="margin-top:32px">Mit freundlichen Grüßen<br>${esc(firma.name||'')}</p>
+
+  <script>window.onload = () => setTimeout(() => window.print(), 200)</script>
+</body></html>`
+
+  const fenster = window.open('', '_blank', 'width=850,height=1000')
+  if (!fenster) throw new Error('Popup wurde vom Browser blockiert — bitte Popups für diese Seite erlauben.')
+  fenster.document.write(html)
+  fenster.document.close()
+}
+
 export function druckBeleg({ beleg, positionen, firma = {}, typ }) {
   if (!beleg) throw new Error('Kein Beleg übergeben.')
   const belegTyp = typ || beleg.typ

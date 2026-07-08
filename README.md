@@ -173,3 +173,13 @@ Bezeichnung mit `lagerorte`), Chargen haben eine echte Fremdschlüssel-
 Referenz. Für vollständige Konsistenz könnte man `artikel.lagerort`
 später auf eine echte `lagerort_id`-Spalte umstellen — aktuell bewusst
 nicht gemacht, um Altdaten nicht zu brechen.
+
+## Runde 4: Mahnwesen
+
+Bisher Platzhalter, jetzt echtes Modul:
+- `sql/10_mahnwesen.sql` — `offene_posten.mahnstufe`/`letzte_mahnung_am`, neue Tabelle `mahnungen` (unveränderliches Protokoll, wie btm_buch)
+- `mahnwesen.js` — Mahnstufen-Logik (0=keine, 1=Erinnerung, 2=1. Mahnung, 3=2. Mahnung/letzte), Fristberechnung
+- `Mahnwesen.jsx` — offene Posten mit Tagen überfällig, Mahnstufe erhöhen per Klick, wahlweise Drucken oder E-Mail (nutzt die bereits gebaute E-Mail-Infrastruktur)
+- `pdfExport.js` — `druckMahnung()` ergänzt, Text passt sich der Mahnstufe an (freundlich → bestimmt → ernst)
+
+Maximal Mahnstufe 3, danach kein weiterer Mahn-Button mehr (manuelle Eskalation z.B. Inkasso liegt außerhalb der Software).
