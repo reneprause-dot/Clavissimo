@@ -12,6 +12,7 @@ import Einkauf from './modules/Einkauf'
 import Verkauf from './modules/Verkauf'
 import MedCanG from './modules/MedCanG'
 import MedCanGPharma from './modules/MedCanGPharma'
+import BtmBuch from './modules/BtmBuch'
 import Einstellungen from './modules/Einstellungen'
 import Nutzerverwaltung from './modules/Nutzerverwaltung'
 import Platzhalter from './modules/Platzhalter'
@@ -31,7 +32,7 @@ const MODULE_COMPONENTS = {
   gobd: () => <Platzhalter titel="GoBD-Konformität" icon="🔒" />,
   medcang: MedCanGPharma,
   partner: Partnerstamm,
-  btm_buch: () => <Platzhalter titel="BtM-Buch" icon="📕" />,
+  btm_buch: BtmBuch,
   erlaubnis_monitor: () => <Platzhalter titel="Erlaubnis-Monitor" icon="📋" />,
   qm: () => <Platzhalter titel="eQMS" icon="✅" />,
   personal: () => <Platzhalter titel="Personal & Zeiterfassung" icon="👤" />,
