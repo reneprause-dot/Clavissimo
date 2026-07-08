@@ -10,6 +10,7 @@ import { getSupabaseClient } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useModules } from '../context/ModuleContext'
 import { triggerEvent, EVENTS } from '../lib/modulIntegration'
+import { bucheBtMBewegung } from '../lib/btmBuch'
 
 const TABS = [
   { key:'artikel',     label:'🌿 Cannabis-Artikel',  modul:'medcang' },
@@ -75,7 +76,25 @@ export default function MedCanGPharma() {
     load()
   }
 
-  const openNeueCharge = () => { setForm({ artikel_id: artikel[0]?.id || '', chargennr: '', bestand: '', mhd: '', thc_analysiert: '', cbd_analysiert: '', lagerort_id: '' }); setModal('neueCharge') }
+  const openNeueCharge = (vorbefuellung = {}) => {
+    setForm({
+      artikel_id: vorbefuellung.artikel_id || artikel[0]?.id || '',
+      chargennr: '', bestand: vorbefuellung.bestand || '', mhd: '', thc_analysiert: '', cbd_analysiert: '', lagerort_id: '',
+      istKorrektur: Boolean(vorbefuellung.istKorrektur), korrekturGrund: vorbefuellung.korrekturGrund || '',
+    })
+    setModal('neueCharge')
+  }
+
+  // Artikel mit Bestand, der (noch) keiner Charge zugeordnet ist —
+  // typischerweise Altbestand aus der Zeit vor der Chargenverfolgung.
+  const bestandOhneCharge = artikel
+    .filter(a => a.btm_pflichtig)
+    .map(a => {
+      const zugewiesen = chargen.filter(c => c.artikel_id === a.id).reduce((s, c) => s + (parseFloat(c.bestand) || 0), 0)
+      const delta = (parseFloat(a.bestand) || 0) - zugewiesen
+      return { artikel: a, delta }
+    })
+    .filter(x => x.delta > 0.001)
 
   const handleCoaUpload = async (charge, file) => {
     if (!file) return
@@ -102,20 +121,31 @@ export default function MedCanGPharma() {
     }
     setSaving(true)
     const sb = getSupabaseClient()
-    const { error } = await sb.from('chargen').insert({
+    const menge = parseFloat(form.bestand) || 0
+    const { data: neueCharge, error } = await sb.from('chargen').insert({
       artikel_id: form.artikel_id,
       chargennr: form.chargennr.trim(),
-      bestand: parseFloat(form.bestand) || 0,
+      bestand: menge,
       mhd: form.mhd || null,
       thc_analysiert: form.thc_analysiert === '' ? null : parseFloat(form.thc_analysiert),
       cbd_analysiert: form.cbd_analysiert === '' ? null : parseFloat(form.cbd_analysiert),
       lagerort_id: form.lagerort_id || null,
       status: 'entwurf',
+    }).select().single()
+    if (error) { showMsg(false, `Fehler: ${error.message}`); setSaving(false); return }
+
+    // BtM-Buch-Zugang auch bei manueller Chargenanlage — sonst wäre das
+    // BtM-Buch für diesen Weg unvollständig (nur der Wareneingang-Weg in
+    // Einkauf.jsx bucht sonst automatisch).
+    await bucheBtMBewegung({
+      typ: 'zugang', artikelId: form.artikel_id, menge, chargeId: neueCharge.id,
+      belegnr: form.istKorrektur ? `BESTANDSKORREKTUR: ${form.korrekturGrund || 'Altbestand ohne Chargenzuordnung'}` : 'Manuelle Chargenanlage',
+      userId: erpUser?.id,
     })
+
     setSaving(false)
-    if (error) { showMsg(false, `Fehler: ${error.message}`); return }
     setModal(null)
-    showMsg(true, `Charge ${form.chargennr} angelegt (Status: entwurf).`)
+    showMsg(true, `Charge ${form.chargennr} angelegt (Status: entwurf)${form.istKorrektur ? ' — als Bestandskorrektur im BtM-Buch protokolliert.' : '.'}`)
     load()
   }
 
@@ -205,8 +235,27 @@ export default function MedCanGPharma() {
       {activeTab==='chargen' && (
         <div>
           <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'0.75rem' }}>
-            {hasRole('user') && <button onClick={openNeueCharge} style={{ background:'var(--accent,#16A34A)', color:'#fff', border:'none', borderRadius:8, padding:'0.5rem 1rem', cursor:'pointer', fontFamily:'inherit', fontSize:'0.8rem', fontWeight:600 }}>+ Neue Charge</button>}
+            {hasRole('user') && <button onClick={() => openNeueCharge()} style={{ background:'var(--accent,#16A34A)', color:'#fff', border:'none', borderRadius:8, padding:'0.5rem 1rem', cursor:'pointer', fontFamily:'inherit', fontSize:'0.8rem', fontWeight:600 }}>+ Neue Charge</button>}
           </div>
+
+          {bestandOhneCharge.length > 0 && (
+            <div style={{ background:'var(--warning,#B4650F)0d', border:'1px solid var(--warning,#B4650F)55', borderRadius:10, padding:'1rem', marginBottom:'1rem' }}>
+              <div style={{ fontSize:'0.82rem', color:'var(--warning,#B4650F)', fontWeight:600, marginBottom:'0.6rem' }}>
+                ⚠️ Bestand ohne Chargenzuordnung — z.B. Altbestand aus der Zeit vor der Chargenverfolgung
+              </div>
+              {bestandOhneCharge.map(({ artikel: a, delta }) => (
+                <div key={a.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.4rem 0', fontSize:'0.8rem', color:'var(--text-secondary,#64748b)' }}>
+                  <span>{a.bezeichnung} — <span style={{ fontFamily:'monospace', color:'var(--warning,#B4650F)' }}>{delta.toFixed(2)} {a.einheit}</span> nicht zugeordnet</span>
+                  {hasRole('user') && (
+                    <button onClick={() => openNeueCharge({ artikel_id: a.id, bestand: delta.toFixed(2), istKorrektur: true, korrekturGrund: 'Altbestand ohne Chargenzuordnung' })}
+                      style={{ background:'transparent', border:'1px solid var(--warning,#B4650F)', color:'var(--warning,#B4650F)', borderRadius:6, padding:'0.25rem 0.7rem', cursor:'pointer', fontFamily:'inherit', fontSize:'0.74rem' }}>
+                      Charge dafür anlegen →
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {modal === 'neueCharge' && (
             <div style={{ background:'var(--bg-secondary,#1a1f2e)', border:'1px solid var(--accent,#16A34A)', borderRadius:10, padding:'1.25rem', marginBottom:'1rem' }}>
