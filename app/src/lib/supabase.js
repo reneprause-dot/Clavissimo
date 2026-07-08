@@ -20,17 +20,6 @@ export function isConfigured() {
   return Boolean(url && key)
 }
 
-/**
- * Liefert URL + Anon-Key unabhängig davon, ob sie aus den Vite-Env-
- * Variablen (Build-Time, z.B. via GitHub Actions Secrets) oder aus
- * localStorage (Ersteinrichtung über SetupScreen) stammen. Wird u.a.
- * von AuthContext.loadErpUser() genutzt, damit der REST-Fetch auch
- * funktioniert, wenn NIE ein SetupScreen durchlaufen wurde.
- */
-export function getSupabaseConfig() {
-  return resolveConfig()
-}
-
 export function getSupabaseClient() {
   if (client) return client
   const { url, key } = resolveConfig()

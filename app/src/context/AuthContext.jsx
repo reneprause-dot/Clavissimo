@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { getSupabaseClient, isConfigured, getSupabaseConfig } from '../lib/supabase'
+import { getSupabaseClient, isConfigured } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -17,7 +17,8 @@ export function AuthProvider({ children }) {
 
   const loadErpUser = async (accessToken, authUserId) => {
     try {
-      const { url, key } = getSupabaseConfig()
+      const url = localStorage.getItem('erp_supabase_url')
+      const key = localStorage.getItem('erp_supabase_key')
       const res = await fetch(
         `${url}/rest/v1/erp_users?auth_id=eq.${authUserId}&select=*&limit=1`,
         { headers: { 'apikey': key, 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }

@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react'
-import { heute, normDatum, normZeit, faelligAm, jetzt } from '../lib/zeitHelfer'
-import BelegVorschau from '../components/BelegVorschau'
-import { manuelleEinkaufsrechnungAnlegen } from '../lib/buchungslogik'
-import { getSupabaseClient } from '../lib/supabase'
-import { useAuth } from '../context/AuthContext'
-import { bucheBtMBewegungenFuerPositionen } from '../lib/btmBuch'
+import { heute, normDatum, normZeit, faelligAm, jetzt } from '../../lib/zeitHelfer'
+import BelegVorschau from '../../components/BelegVorschau'
+import { manuelleEinkaufsrechnungAnlegen } from '../../lib/buchungslogik'
+import { getSupabaseClient } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 import {
   einkaufBestellungAnlegen,
   einkaufWareneingangBuchen,
   einkaufRechnungBuchen,
   berechnePositionen
-} from '../lib/buchungslogik'
+} from '../../lib/buchungslogik'
 
 const STATUS_INFO = {
   offen: { label: 'Offen', color: 'var(--accent,#2563eb)' },
@@ -107,11 +106,6 @@ export default function Einkauf() {
     try {
       const posMap = positionen.filter(p => p.bezeichnung || p.artikel_id)
       await einkaufWareneingangBuchen({ bestellung_id: selectedBeleg.id, lieferdatum: form.lieferdatum, lieferscheinnr: form.lieferscheinnr, positionen_geliefert: posMap, erstellt_von: erpUser?.id })
-      // BtM-Buch (§13 BtMVV): physischer Wareneingang. Nur BtM-pflichtige
-      // Artikel werden tatsächlich gebucht — bucheBtMBewegung prüft das selbst.
-      await bucheBtMBewegungenFuerPositionen('zugang', posMap, {
-        partnerId: selectedBeleg.lieferant_id, belegnr: form.lieferscheinnr, userId: erpUser?.id,
-      })
       setMsg({ ok: true, text: 'Wareneingang gebucht! Bestand erhöht, Bestellung archiviert.' })
       setTimeout(() => { setModal(null); load() }, 1800)
     } catch(e) { setMsg({ ok: false, text: e.message }) }
@@ -179,7 +173,7 @@ export default function Einkauf() {
           ['offene_posten', `⚡ Offene Posten (${offenePosten.length})`],
           ['archiv', `📁 Archiv (${archiv.length})`]
         ].map(([key, label]) => (
-          <button key={key} onClick={() => setActiveTab(key)} style={{ borderRadius: 20, padding: '0.35rem 0.9rem', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', background: activeTab === key ? 'var(--accent,#2563eb)' : 'var(--bg-secondary,#1a1f2e)', color: activeTab === key ? '#fff' : 'var(--text-secondary,#64748b)', border: activeTab === key ? 'none' : '1px solid var(--border,#2d3748)' }}>{label}</button>
+          <button key={key} onClick={() => setActiveTab(key)} style={{ borderRadius: 20, padding: '0.35rem 0.9rem', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', border: 'none', background: activeTab === key ? 'var(--accent,#2563eb)' : 'var(--bg-secondary,#1a1f2e)', color: activeTab === key ? '#fff' : 'var(--text-secondary,#64748b)', border: activeTab === key ? 'none' : '1px solid var(--border,#2d3748)' }}>{label}</button>
         ))}
       </div>
 

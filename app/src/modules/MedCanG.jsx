@@ -4,8 +4,8 @@
  * Deaktivierung durch Admin nur möglich wenn keine Felder genutzt
  */
 import { useEffect, useState } from 'react'
-import { getSupabaseClient } from '../lib/supabase'
-import { useAuth } from '../context/AuthContext'
+import { getSupabaseClient } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 
 // MedCanG Wiki Inhalte
 const WIKI = [

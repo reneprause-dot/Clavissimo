@@ -6,10 +6,10 @@
  * Aktivierung: eines oder beide Module können aktiv sein
  */
 import { useEffect, useState } from 'react'
-import { getSupabaseClient } from '../lib/supabase'
-import { useAuth } from '../context/AuthContext'
-import { useModules } from '../context/ModuleContext'
-import { triggerEvent, EVENTS } from '../lib/modulIntegration'
+import { getSupabaseClient } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
+import { useModules } from '../../context/ModuleContext'
+import { triggerEvent, EVENTS } from '../../lib/modulIntegration'
 
 const TABS = [
   { key:'artikel',     label:'🌿 Cannabis-Artikel',  modul:'medcang' },

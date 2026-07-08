@@ -4,19 +4,18 @@
  * Mit Storno-Button und E-Mail-Versand
  */
 import { useEffect, useState, useCallback } from 'react'
-import { heute, normDatum, normZeit, faelligAm, jetzt } from '../lib/zeitHelfer'
-import BelegVorschau from '../components/BelegVorschau'
-import { sendeEmail, erstelleRechnungsEmail, ladeEmailConfig, isEmailKonfiguriert } from '../lib/emailService'
-import { getSupabaseClient } from '../lib/supabase'
-import { useAuth } from '../context/AuthContext'
-import { useModules } from '../context/ModuleContext'
-import { verkaufRechnungBuchen, verkaufLieferscheinBuchen, zahlungBuchen, verkaufAngebotAnlegen, verkaufAuftragAnlegen, manuelleVerkaufsrechnungAnlegen } from '../lib/buchungslogik'
-import { triggerEvent, hatBlockierung, blockierungsGruende, EVENTS } from '../lib/modulIntegration'
-import { bucheBtMBewegungenFuerPositionen } from '../lib/btmBuch'
-import { storniereVKBeleg } from '../lib/stornoLogik'
-import { druckBeleg } from '../lib/pdfExport'
-import EmailPanel from '../components/EmailPanel'
-import { logAudit } from '../lib/auditTrail'
+import { heute, normDatum, normZeit, faelligAm, jetzt } from '../../lib/zeitHelfer'
+import BelegVorschau from '../../components/BelegVorschau'
+import { sendeEmail, erstelleRechnungsEmail, ladeEmailConfig, isEmailKonfiguriert } from '../../lib/emailService'
+import { getSupabaseClient } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
+import { useModules } from '../../context/ModuleContext'
+import { verkaufRechnungBuchen, verkaufLieferscheinBuchen, zahlungBuchen, verkaufAngebotAnlegen, verkaufAuftragAnlegen, manuelleVerkaufsrechnungAnlegen } from '../../lib/buchungslogik'
+import { triggerEvent, hatBlockierung, EVENTS } from '../../lib/modulIntegration'
+import { storniereVKBeleg } from '../../lib/stornoLogik'
+import { druckBeleg } from '../../lib/pdfExport'
+import EmailPanel from '../../components/EmailPanel'
+import { logAudit } from '../../lib/auditTrail'
 
 const BELEG_TYPEN = ['angebot','auftrag','lieferschein','rechnung','gutschrift']
 const STATUS_FARBE = { entwurf:'var(--text-muted,#475569)', offen:'var(--accent,#2563eb)', bestaetigt:'#7c3aed', geliefert:'#d97706', gebucht:'var(--success,#059669)', bezahlt:'var(--success,#10b981)', storniert:'var(--danger,#dc2626)', abgelehnt:'var(--danger,#ef4444)' }
@@ -108,10 +107,7 @@ export default function Verkauf() {
       kundeId: form.kunde_id,
       positionen: form.positionen,
     }, { activeModules, erpUser })
-    if (hatBlockierung(integErg)) {
-      showMsg(false, blockierungsGruende(integErg).join(' ') || 'Verkauf durch Compliance-Prüfung blockiert.')
-      setSaving(false); return
-    }
+    if (hatBlockierung(integErg)) { setSaving(false); return }
 
     try {
       let beleg, belegnr
@@ -188,12 +184,6 @@ export default function Verkauf() {
     try {
       if (beleg.typ === 'lieferschein') {
         await verkaufLieferscheinBuchen({ auftrag_id: beleg.id, lieferdatum: beleg.datum, positionen_geliefert: positionen.map(p=>({...p,gelieferte_menge:p.menge})), erstellt_von: erpUser?.id })
-        // BtM-Buch (§13 BtMVV): physischer Warenausgang, daher hier und
-        // nicht erst bei der Rechnung. Nur BtM-pflichtige Artikel werden
-        // tatsächlich gebucht — bucheBtMBewegung prüft das selbst.
-        await bucheBtMBewegungenFuerPositionen('abgang', positionen, {
-          partnerId: beleg.kunde_id, belegnr: beleg.belegnr, userId: erpUser?.id,
-        })
         showMsg(true, 'Lieferschein gebucht — Bestand reduziert.')
       } else if (beleg.typ === 'rechnung') {
         await verkaufRechnungBuchen({ referenz_id: beleg.id, datum: beleg.datum, positionen, notizen: beleg.notizen, erstellt_von: erpUser?.id })
