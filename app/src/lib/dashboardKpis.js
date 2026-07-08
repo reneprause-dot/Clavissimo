@@ -14,6 +14,17 @@ export async function ladeBtmBestand() {
   }
 }
 
+/** Vollständige Bestandsliste aller aktiven Artikel, für die Dashboard-Übersicht. */
+export async function ladeGesamtBestand() {
+  const sb = getSupabaseClient()
+  const { data, error } = await sb.from('artikel')
+    .select('id, artikelnr, bezeichnung, bestand, mindestbestand, einheit, btm_pflichtig, lagerort')
+    .eq('aktiv', true)
+    .order('bezeichnung')
+  if (error) return []
+  return data || []
+}
+
 /** Prüft, ob für den aktuellen Monat bereits eine BtM-Meldung existiert. */
 export async function pruefeAktuelleMeldung() {
   const sb = getSupabaseClient()
