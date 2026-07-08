@@ -7,11 +7,13 @@ import LoginScreen from './components/LoginScreen'
 
 import Dashboard from './modules/Dashboard'
 import Lager from './modules/Lager'
+import Partnerstamm from './modules/Partnerstamm'
 import Einkauf from './modules/Einkauf'
 import Verkauf from './modules/Verkauf'
 import MedCanG from './modules/MedCanG'
 import MedCanGPharma from './modules/MedCanGPharma'
 import Einstellungen from './modules/Einstellungen'
+import Nutzerverwaltung from './modules/Nutzerverwaltung'
 import Platzhalter from './modules/Platzhalter'
 
 // Modul-Key → Komponente. Module ohne eigene Oberfläche fallen auf
@@ -28,12 +30,13 @@ const MODULE_COMPONENTS = {
   datev: () => <Platzhalter titel="DATEV Export" icon="📤" />,
   gobd: () => <Platzhalter titel="GoBD-Konformität" icon="🔒" />,
   medcang: MedCanGPharma,
-  partner: () => <Platzhalter titel="Partnerstamm" icon="👥" />,
+  partner: Partnerstamm,
   btm_buch: () => <Platzhalter titel="BtM-Buch" icon="📕" />,
   erlaubnis_monitor: () => <Platzhalter titel="Erlaubnis-Monitor" icon="📋" />,
   qm: () => <Platzhalter titel="eQMS" icon="✅" />,
   personal: () => <Platzhalter titel="Personal & Zeiterfassung" icon="👤" />,
   einstellungen: Einstellungen,
+  nutzerverwaltung: Nutzerverwaltung,
 }
 
 function AppInnen() {

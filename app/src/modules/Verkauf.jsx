@@ -4,18 +4,20 @@
  * Mit Storno-Button und E-Mail-Versand
  */
 import { useEffect, useState, useCallback } from 'react'
-import { heute, normDatum, normZeit, faelligAm, jetzt } from '../../lib/zeitHelfer'
-import BelegVorschau from '../../components/BelegVorschau'
-import { sendeEmail, erstelleRechnungsEmail, ladeEmailConfig, isEmailKonfiguriert } from '../../lib/emailService'
-import { getSupabaseClient } from '../../lib/supabase'
-import { useAuth } from '../../context/AuthContext'
-import { useModules } from '../../context/ModuleContext'
-import { verkaufRechnungBuchen, verkaufLieferscheinBuchen, zahlungBuchen, verkaufAngebotAnlegen, verkaufAuftragAnlegen, manuelleVerkaufsrechnungAnlegen } from '../../lib/buchungslogik'
-import { triggerEvent, hatBlockierung, EVENTS } from '../../lib/modulIntegration'
-import { storniereVKBeleg } from '../../lib/stornoLogik'
-import { druckBeleg } from '../../lib/pdfExport'
-import EmailPanel from '../../components/EmailPanel'
-import { logAudit } from '../../lib/auditTrail'
+import { heute, normDatum, normZeit, faelligAm, jetzt } from '../lib/zeitHelfer'
+import BelegVorschau from '../components/BelegVorschau'
+import { sendeEmail, erstelleRechnungsEmail, ladeEmailConfig, isEmailKonfiguriert } from '../lib/emailService'
+import { getSupabaseClient } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+import { useModules } from '../context/ModuleContext'
+import { verkaufRechnungBuchen, verkaufLieferscheinBuchen, zahlungBuchen, verkaufAngebotAnlegen, verkaufAuftragAnlegen, manuelleVerkaufsrechnungAnlegen } from '../lib/buchungslogik'
+import { triggerEvent, hatBlockierung, blockierungsGruende, EVENTS } from '../lib/modulIntegration'
+import { bucheBtMBewegungenFuerPositionen } from '../lib/btmBuch'
+import { ladeVerfuegbareChargen } from '../lib/chargenAuswahl'
+import { storniereVKBeleg } from '../lib/stornoLogik'
+import { druckBeleg } from '../lib/pdfExport'
+import EmailPanel from '../components/EmailPanel'
+import { logAudit } from '../lib/auditTrail'
 
 const BELEG_TYPEN = ['angebot','auftrag','lieferschein','rechnung','gutschrift']
 const STATUS_FARBE = { entwurf:'var(--text-muted,#475569)', offen:'var(--accent,#2563eb)', bestaetigt:'#7c3aed', geliefert:'#d97706', gebucht:'var(--success,#059669)', bezahlt:'var(--success,#10b981)', storniert:'var(--danger,#dc2626)', abgelehnt:'var(--danger,#ef4444)' }
@@ -50,7 +52,7 @@ export default function Verkauf() {
     const [{ data: b }, { data: k }, { data: a }, { data: ko }, { data: ein }] = await Promise.all([
       sb.from('verkaufsbelege').select('*, kunde:geschaeftspartner(id,name,email,strasse,plz,ort,kundennr)').order('created_at', { ascending: false }),
       sb.from('geschaeftspartner').select('id,name,email,kundennr,strasse,plz,ort,zahlungsziel,skonto_prozent,skonto_tage').in('typ', ['kunde','beide']).eq('aktiv', true).order('name'),
-      sb.from('artikel').select('id,artikelnr,bezeichnung,verkaufspreis,mwst_satz,einheit,bestand').eq('aktiv', true).order('artikelnr'),
+      sb.from('artikel').select('id,artikelnr,bezeichnung,verkaufspreis,mwst_satz,einheit,bestand,btm_pflichtig').eq('aktiv', true).order('artikelnr'),
       sb.from('konten').select('id,nummer,bezeichnung').eq('aktiv', true).order('nummer'),
       sb.from('einstellungen').select('*'),
     ])
@@ -107,7 +109,10 @@ export default function Verkauf() {
       kundeId: form.kunde_id,
       positionen: form.positionen,
     }, { activeModules, erpUser })
-    if (hatBlockierung(integErg)) { setSaving(false); return }
+    if (hatBlockierung(integErg)) {
+      showMsg(false, blockierungsGruende(integErg).join(' ') || 'Verkauf durch Compliance-Prüfung blockiert.')
+      setSaving(false); return
+    }
 
     try {
       let beleg, belegnr
@@ -184,6 +189,12 @@ export default function Verkauf() {
     try {
       if (beleg.typ === 'lieferschein') {
         await verkaufLieferscheinBuchen({ auftrag_id: beleg.id, lieferdatum: beleg.datum, positionen_geliefert: positionen.map(p=>({...p,gelieferte_menge:p.menge})), erstellt_von: erpUser?.id })
+        // BtM-Buch (§13 BtMVV): physischer Warenausgang, daher hier und
+        // nicht erst bei der Rechnung. Nur BtM-pflichtige Artikel werden
+        // tatsächlich gebucht — bucheBtMBewegung prüft das selbst.
+        await bucheBtMBewegungenFuerPositionen('abgang', positionen, {
+          partnerId: beleg.kunde_id, belegnr: beleg.belegnr, userId: erpUser?.id,
+        })
         showMsg(true, 'Lieferschein gebucht — Bestand reduziert.')
       } else if (beleg.typ === 'rechnung') {
         await verkaufRechnungBuchen({ referenz_id: beleg.id, datum: beleg.datum, positionen, notizen: beleg.notizen, erstellt_von: erpUser?.id })
@@ -428,12 +439,18 @@ export default function Verkauf() {
 
 // ── Beleg-Modal ───────────────────────────────────────────────────────────────
 function BelegModal({ form, setForm, kunden, artikel, onClose, onSave, saving }) {
+  const [chargenCache, setChargenCache] = useState({}) // artikel_id -> chargen[]
+
   const updatePos = (idx, field, val) => {
     const neu = [...form.positionen]
     neu[idx] = { ...neu[idx], [field]: val }
     if (field === 'artikel_id') {
       const a = artikel.find(a => a.id === val)
       if (a) { neu[idx].einzelpreis = a.verkaufspreis; neu[idx].mwst_satz = a.mwst_satz; neu[idx].einheit = a.einheit; neu[idx].bezeichnung = a.bezeichnung }
+      neu[idx].charge_id = '' // Charge-Auswahl bei Artikelwechsel zurücksetzen
+      if (a?.btm_pflichtig && val && !chargenCache[val]) {
+        ladeVerfuegbareChargen(val).then(liste => setChargenCache(prev => ({ ...prev, [val]: liste })))
+      }
     }
     setForm({ ...form, positionen: neu })
   }
@@ -473,13 +490,17 @@ function BelegModal({ form, setForm, kunden, artikel, onClose, onSave, saving })
             <label style={{ ...lbl, marginBottom:0 }}>Positionen</label>
             <button onClick={addPos} style={btnSmall('var(--accent,#2563eb)')}>+ Position</button>
           </div>
-          {(form.positionen||[]).map((p, idx) => (
-            <div key={idx} style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr auto', gap:'0.4rem', marginBottom:'0.4rem', alignItems:'end' }}>
+          {(form.positionen||[]).map((p, idx) => {
+            const gewaehlterArtikel = artikel.find(a => a.id === p.artikel_id)
+            const istBtm = gewaehlterArtikel?.btm_pflichtig
+            const verfuegbareChargen = chargenCache[p.artikel_id] || []
+            return (
+            <div key={idx} style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 1.3fr auto', gap:'0.4rem', marginBottom:'0.4rem', alignItems:'end' }}>
               <div>
                 {idx===0&&<label style={lbl}>Artikel</label>}
                 <select value={p.artikel_id||''} onChange={e=>updatePos(idx,'artikel_id',e.target.value)} style={{...inp,fontSize:'0.78rem'}}>
                   <option value="">– Artikel –</option>
-                  {artikel.map(a=><option key={a.id} value={a.id}>{a.artikelnr} – {a.bezeichnung}</option>)}
+                  {artikel.map(a=><option key={a.id} value={a.id}>{a.artikelnr} – {a.bezeichnung}{a.btm_pflichtig?' 🔒':''}</option>)}
                 </select>
               </div>
               <div>
@@ -494,9 +515,23 @@ function BelegModal({ form, setForm, kunden, artikel, onClose, onSave, saving })
                 {idx===0&&<label style={lbl}>MwSt %</label>}
                 <input type="number" value={p.mwst_satz||19} onChange={e=>updatePos(idx,'mwst_satz',e.target.value)} style={{...inp,fontSize:'0.78rem'}}/>
               </div>
+              <div>
+                {idx===0&&<label style={lbl}>Charge (BtM)</label>}
+                {istBtm ? (
+                  <select value={p.charge_id||''} onChange={e=>updatePos(idx,'charge_id',e.target.value)} style={{...inp,fontSize:'0.78rem', borderColor: p.charge_id?undefined:'var(--warning,#B4650F)'}}>
+                    <option value="">– Charge wählen –</option>
+                    {verfuegbareChargen.map(c => (
+                      <option key={c.id} value={c.id}>{c.chargennr} (Best. {c.bestand}{c.mhd?`, MHD ${new Date(c.mhd).toLocaleDateString('de-DE')}`:''})</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ ...inp, fontSize:'0.72rem', color:'var(--text-muted,#475569)', background:'transparent', border:'1px dashed var(--border,#2d3748)' }}>–</div>
+                )}
+              </div>
               <button onClick={()=>delPos(idx)} style={{ background:'transparent', border:'none', color:'var(--danger,#ef4444)', cursor:'pointer', fontSize:'1.1rem', paddingBottom:'0.1rem' }}>×</button>
             </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Summen */}

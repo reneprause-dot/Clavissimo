@@ -39,6 +39,16 @@ export async function bucheBtMBewegung({ typ, artikelId, menge, chargeId = null,
     return { ok: true, gebucht: false } // kein BtM-Artikel — nichts zu tun, kein Fehler
   }
 
+  // Falls eine konkrete Charge gewählt wurde: deren Bestand ebenfalls anpassen.
+  if (chargeId) {
+    const vorzeichen = typ === 'abgang' ? -1 : 1
+    const { data: charge } = await sb.from('chargen').select('bestand').eq('id', chargeId).single()
+    if (charge) {
+      const neuerBestand = Math.max(0, (charge.bestand || 0) + vorzeichen * menge)
+      await sb.from('chargen').update({ bestand: neuerBestand }).eq('id', chargeId)
+    }
+  }
+
   const { error } = await sb.from('btm_buch').insert({
     typ,
     datum: new Date().toISOString().slice(0, 10),
@@ -71,7 +81,7 @@ export async function bucheBtMBewegungenFuerPositionen(typ, positionen, { partne
     const artikelId = pos.artikel_id
     const menge = parseFloat(pos.gelieferte_menge ?? pos.menge)
     if (!artikelId || !menge) continue
-    const res = await bucheBtMBewegung({ typ, artikelId, menge, partnerId, belegnr, userId })
+    const res = await bucheBtMBewegung({ typ, artikelId, menge, chargeId: pos.charge_id || null, partnerId, belegnr, userId })
     if (!res.ok) fehler.push(res.error)
   }
   return { ok: fehler.length === 0, fehler }

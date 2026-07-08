@@ -174,6 +174,14 @@ export const MODUL_REGISTRY = [
 
   // ── 🛡️ Administration ──────────────────────────────────────────────────
   {
+    key: 'nutzerverwaltung',
+    label: 'Nutzerverwaltung',
+    icon: '👤',
+    gruppe: null,
+    beschreibung: 'Nutzer einladen, Rollen verwalten',
+    kern: true, aktiv: true, pflicht: true, adminOnly: true,
+  },
+  {
     key: 'einstellungen',
     label: 'Einstellungen',
     icon: '⚙️',

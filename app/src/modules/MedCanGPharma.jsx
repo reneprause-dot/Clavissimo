@@ -6,10 +6,10 @@
  * Aktivierung: eines oder beide Module können aktiv sein
  */
 import { useEffect, useState } from 'react'
-import { getSupabaseClient } from '../../lib/supabase'
-import { useAuth } from '../../context/AuthContext'
-import { useModules } from '../../context/ModuleContext'
-import { triggerEvent, EVENTS } from '../../lib/modulIntegration'
+import { getSupabaseClient } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+import { useModules } from '../context/ModuleContext'
+import { triggerEvent, EVENTS } from '../lib/modulIntegration'
 
 const TABS = [
   { key:'artikel',     label:'🌿 Cannabis-Artikel',  modul:'medcang' },
@@ -70,6 +70,30 @@ export default function MedCanGPharma() {
       }, { activeModules, erpUser })
     }
     showMsg(true, `Charge ${charge.charge_nr || charge.chargennr} → ${neuerStatus}`)
+    load()
+  }
+
+  const openNeueCharge = () => { setForm({ artikel_id: artikel[0]?.id || '', chargennr: '', bestand: '', mhd: '', thc_analysiert: '', cbd_analysiert: '' }); setModal('neueCharge') }
+
+  const handleNeueCharge = async () => {
+    if (!form.artikel_id || !form.chargennr?.trim() || !form.bestand) {
+      showMsg(false, 'Artikel, Chargennummer und Bestand sind Pflichtfelder.'); return
+    }
+    setSaving(true)
+    const sb = getSupabaseClient()
+    const { error } = await sb.from('chargen').insert({
+      artikel_id: form.artikel_id,
+      chargennr: form.chargennr.trim(),
+      bestand: parseFloat(form.bestand) || 0,
+      mhd: form.mhd || null,
+      thc_analysiert: form.thc_analysiert === '' ? null : parseFloat(form.thc_analysiert),
+      cbd_analysiert: form.cbd_analysiert === '' ? null : parseFloat(form.cbd_analysiert),
+      status: 'entwurf',
+    })
+    setSaving(false)
+    if (error) { showMsg(false, `Fehler: ${error.message}`); return }
+    setModal(null)
+    showMsg(true, `Charge ${form.chargennr} angelegt (Status: entwurf).`)
     load()
   }
 
@@ -158,6 +182,51 @@ export default function MedCanGPharma() {
       {/* ── Chargen & CoA ── */}
       {activeTab==='chargen' && (
         <div>
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:'0.75rem' }}>
+            {hasRole('user') && <button onClick={openNeueCharge} style={{ background:'var(--accent,#16A34A)', color:'#fff', border:'none', borderRadius:8, padding:'0.5rem 1rem', cursor:'pointer', fontFamily:'inherit', fontSize:'0.8rem', fontWeight:600 }}>+ Neue Charge</button>}
+          </div>
+
+          {modal === 'neueCharge' && (
+            <div style={{ background:'var(--bg-secondary,#1a1f2e)', border:'1px solid var(--accent,#16A34A)', borderRadius:10, padding:'1.25rem', marginBottom:'1rem' }}>
+              <h4 style={{ margin:'0 0 0.9rem', fontSize:'0.9rem', color:'var(--accent,#16A34A)' }}>Neue Charge anlegen</h4>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:'0.75rem' }}>
+                <div>
+                  <label style={{ display:'block', fontSize:'0.68rem', color:'var(--text-muted,#64748b)', textTransform:'uppercase', marginBottom:'0.25rem' }}>Artikel *</label>
+                  <select value={form.artikel_id||''} onChange={e=>setForm({...form,artikel_id:e.target.value})} style={mfInp}>
+                    {artikel.filter(a=>a.btm_pflichtig).map(a => <option key={a.id} value={a.id}>{a.bezeichnung} ({a.artikelnr})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:'0.68rem', color:'var(--text-muted,#64748b)', textTransform:'uppercase', marginBottom:'0.25rem' }}>Chargennummer *</label>
+                  <input value={form.chargennr||''} onChange={e=>setForm({...form,chargennr:e.target.value})} style={mfInp} placeholder="z.B. BC-2026-0500" />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:'0.68rem', color:'var(--text-muted,#64748b)', textTransform:'uppercase', marginBottom:'0.25rem' }}>Bestand *</label>
+                  <input type="number" step="0.01" value={form.bestand||''} onChange={e=>setForm({...form,bestand:e.target.value})} style={mfInp} />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:'0.68rem', color:'var(--text-muted,#64748b)', textTransform:'uppercase', marginBottom:'0.25rem' }}>MHD</label>
+                  <input type="date" value={form.mhd||''} onChange={e=>setForm({...form,mhd:e.target.value})} style={mfInp} />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:'0.68rem', color:'var(--text-muted,#64748b)', textTransform:'uppercase', marginBottom:'0.25rem' }}>THC analysiert (%)</label>
+                  <input type="number" step="0.01" value={form.thc_analysiert||''} onChange={e=>setForm({...form,thc_analysiert:e.target.value})} style={mfInp} />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:'0.68rem', color:'var(--text-muted,#64748b)', textTransform:'uppercase', marginBottom:'0.25rem' }}>CBD analysiert (%)</label>
+                  <input type="number" step="0.01" value={form.cbd_analysiert||''} onChange={e=>setForm({...form,cbd_analysiert:e.target.value})} style={mfInp} />
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:'0.6rem', justifyContent:'flex-end', marginTop:'1rem' }}>
+                <button onClick={()=>setModal(null)} style={{ background:'transparent', color:'var(--text-secondary,#94a3b8)', border:'1px solid var(--border,#2d3748)', borderRadius:8, padding:'0.5rem 1rem', cursor:'pointer', fontFamily:'inherit', fontSize:'0.8rem' }}>Abbrechen</button>
+                <button onClick={handleNeueCharge} disabled={saving} style={{ background:'var(--accent,#16A34A)', color:'#fff', border:'none', borderRadius:8, padding:'0.5rem 1.1rem', cursor:'pointer', fontFamily:'inherit', fontSize:'0.8rem', fontWeight:600, opacity:saving?0.6:1 }}>{saving?'Speichern...':'✓ Anlegen'}</button>
+              </div>
+              <p style={{ margin:'0.75rem 0 0', fontSize:'0.7rem', color:'var(--text-muted,#64748b)' }}>
+                Neue Chargen starten im Status "entwurf" — erst nach Freigabe (CoA-Prüfung) über den Status-Button unten sind sie in Verkauf.jsx auswählbar.
+              </p>
+            </div>
+          )}
+
           <div style={{ display:'grid', gap:'0.65rem' }}>
             {chargen.filter(c => c.artikel?.pzn || c.pzn || c.thc_analysiert != null).map(c => (
               <div key={c.id} style={{ background:'var(--bg-secondary,#1a1f2e)', border:`1px solid ${c.status==='freigegeben'?'var(--success,#059669)':c.status==='gesperrt'?'var(--danger,#dc2626)':'var(--border,#2d3748)'}`, borderRadius:10, padding:'1rem' }}>
@@ -312,3 +381,5 @@ export default function MedCanGPharma() {
     </div>
   )
 }
+
+const mfInp = { width:'100%', background:'var(--input-bg,#0f1117)', border:'1px solid var(--border,#2d3748)', borderRadius:8, padding:'0.55rem 0.7rem', color:'var(--text-primary,#e2e8f0)', fontSize:'0.82rem', fontFamily:'inherit', boxSizing:'border-box', outline:'none' }

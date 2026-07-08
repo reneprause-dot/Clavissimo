@@ -180,7 +180,7 @@ export const THEMES = {
 }
 
 export function applyTheme(themeId) {
-  const theme = THEMES[themeId] || THEMES.clavis_dark
+  const theme = THEMES[themeId] || THEMES.clavissimo_green
   const root = document.documentElement
   Object.entries(theme.vars).forEach(([key, value]) => {
     root.style.setProperty(key, value)
@@ -189,11 +189,11 @@ export function applyTheme(themeId) {
 }
 
 export function loadSavedTheme() {
-  const saved = localStorage.getItem('clavis_theme') || 'clavis_dark'
+  const saved = localStorage.getItem('clavis_theme') || 'clavissimo_green'
   applyTheme(saved)
   return saved
 }
 
 export function getTheme(id) {
-  return THEMES[id] || THEMES.clavis_dark
+  return THEMES[id] || THEMES.clavissimo_green
 }
