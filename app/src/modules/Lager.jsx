@@ -3,9 +3,10 @@ import { getSupabaseClient } from '../lib/supabase'
 import { dbCall } from '../lib/dbHelper'
 import { useAuth } from '../context/AuthContext'
 import { ladeOptionen, nurAktive } from '../lib/optionsListen'
+import { logAudit } from '../lib/auditTrail'
 
 export default function Lager() {
-  const { hasRole } = useAuth()
+  const { hasRole, erpUser } = useAuth()
   const [artikel, setArtikel] = useState([])
   const [einheiten, setEinheiten] = useState([])
   const [kategorien, setKategorien] = useState([])
@@ -14,6 +15,7 @@ export default function Lager() {
   const [amgKategorien, setAmgKategorien] = useState([])
   const [gmpKlassen, setGmpKlassen] = useState([])
   const [temperaturklassen, setTemperaturklassen] = useState([])
+  const [lagerorte, setLagerorte] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -37,7 +39,7 @@ export default function Lager() {
 
   const load = async () => {
     const sb = getSupabaseClient()
-    const [artikelRes, einheitenRes, kat, sor, medcang, amg, gmp, temp] = await Promise.all([
+    const [artikelRes, einheitenRes, kat, sor, medcang, amg, gmp, temp, lo] = await Promise.all([
       dbCall(sb.from('artikel').select('*').order('artikelnr'), 'Lager: artikel'),
       dbCall(sb.from('einheiten').select('*').eq('aktiv', true).order('sortierung'), 'Lager: einheiten'),
       ladeOptionen('artikel_kategorien'),
@@ -46,6 +48,7 @@ export default function Lager() {
       ladeOptionen('amg_kategorien'),
       ladeOptionen('gmp_klassen'),
       ladeOptionen('temperaturklassen'),
+      dbCall(sb.from('lagerorte').select('*').eq('aktiv', true).order('sortierung'), 'Lager: lagerorte'),
     ])
     setArtikel(artikelRes.data || [])
     setEinheiten(einheitenRes.data || [])
@@ -55,6 +58,7 @@ export default function Lager() {
     setAmgKategorien(nurAktive(amg))
     setGmpKlassen(nurAktive(gmp))
     setTemperaturklassen(nurAktive(temp))
+    setLagerorte(lo.data || [])
     setLoading(false)
   }
 
@@ -76,6 +80,9 @@ export default function Lager() {
     }
     if (editing) await sb.from('artikel').update(payload).eq('id', editing)
     else await sb.from('artikel').insert(payload)
+    await logAudit(editing ? 'artikel_geaendert' : 'artikel_angelegt', {
+      artikelId: editing || null, artikelnr: payload.artikelnr, bezeichnung: payload.bezeichnung, userId: erpUser?.id,
+    })
     setShowForm(false); load(); setSaving(false)
   }
 
@@ -119,12 +126,20 @@ export default function Lager() {
           <h3 style={{ margin: '0 0 1.25rem', color: 'var(--accent-light,#60a5fa)', fontSize: '1rem' }}>{editing ? 'Artikel bearbeiten' : 'Neuer Artikel'}</h3>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
-            {[['artikelnr','Artikelnummer *'],['bezeichnung','Bezeichnung *'],['beschreibung','Beschreibung'],['lagerort','Lagerort']].map(([field, label]) => (
+            {[['artikelnr','Artikelnummer *'],['bezeichnung','Bezeichnung *'],['beschreibung','Beschreibung']].map(([field, label]) => (
               <div key={field} style={field==='bezeichnung'||field==='beschreibung'?{gridColumn:'span 2'}:{}}>
                 <label style={lbl}>{label}</label>
                 <input value={form[field]} onChange={e => setForm({...form,[field]:e.target.value})} style={inp} />
               </div>
             ))}
+            <div>
+              <label style={lbl}>Lagerort</label>
+              <select value={form.lagerort||''} onChange={e => setForm({...form, lagerort: e.target.value})} style={inp}>
+                <option value="">– keine Auswahl –</option>
+                {form.lagerort && !lagerorte.some(o=>o.bezeichnung===form.lagerort) && <option value={form.lagerort}>{form.lagerort} (inaktiv)</option>}
+                {lagerorte.map(o => <option key={o.id} value={o.bezeichnung}>{o.bezeichnung}</option>)}
+              </select>
+            </div>
             <div>
               <label style={lbl}>Kategorie</label>
               <select value={form.kategorie} onChange={e => setForm({...form, kategorie: e.target.value})} style={inp}>

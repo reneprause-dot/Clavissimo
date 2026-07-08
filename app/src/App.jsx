@@ -7,12 +7,14 @@ import LoginScreen from './components/LoginScreen'
 
 import Dashboard from './modules/Dashboard'
 import Lager from './modules/Lager'
+import WMS from './modules/WMS'
 import Partnerstamm from './modules/Partnerstamm'
 import Einkauf from './modules/Einkauf'
 import Verkauf from './modules/Verkauf'
 import MedCanG from './modules/MedCanG'
 import MedCanGPharma from './modules/MedCanGPharma'
 import BtmBuch from './modules/BtmBuch'
+import Buchhaltung from './modules/Buchhaltung'
 import Einstellungen from './modules/Einstellungen'
 import Nutzerverwaltung from './modules/Nutzerverwaltung'
 import Platzhalter from './modules/Platzhalter'
@@ -23,10 +25,10 @@ const MODULE_COMPONENTS = {
   dashboard: Dashboard,
   artikel: Lager,          // Lager.jsx deckt Artikelstamm-CRUD bereits mit ab
   lager: Lager,
-  wms: () => <Platzhalter titel="Lagerverwaltung (WMS)" icon="📍" />,
+  wms: WMS,
   einkauf: Einkauf,
   verkauf: Verkauf,
-  buchhaltung: () => <Platzhalter titel="Buchungsjournal" icon="📒" />,
+  buchhaltung: Buchhaltung,
   mahnwesen: () => <Platzhalter titel="Mahnwesen" icon="📨" />,
   datev: () => <Platzhalter titel="DATEV Export" icon="📤" />,
   gobd: () => <Platzhalter titel="GoBD-Konformität" icon="🔒" />,
@@ -41,12 +43,24 @@ const MODULE_COMPONENTS = {
 }
 
 function AppInnen() {
-  const { configured, loading, user, erpUserFehlt, reconfigure } = useAuth()
+  const { configured, loading, user, erpUserFehlt, erpUserDeaktiviert, signOut, reconfigure } = useAuth()
   const [currentView, setCurrentView] = useState('dashboard')
 
   if (!configured) return <SetupScreen onFertig={reconfigure} />
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Lade…</div>
   if (!user) return <LoginScreen />
+  if (erpUserDeaktiviert) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--danger,#B3261E)' }}>
+        Dein Zugang wurde deaktiviert. Bitte wende dich an einen Admin.
+        <div style={{ marginTop: '1rem' }}>
+          <button onClick={signOut} style={{ background: 'transparent', border: '1px solid var(--danger,#B3261E)', color: 'var(--danger,#B3261E)', borderRadius: 8, padding: '0.5rem 1.2rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+            Abmelden
+          </button>
+        </div>
+      </div>
+    )
+  }
   if (erpUserFehlt) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--danger,#B3261E)' }}>
@@ -61,7 +75,7 @@ function AppInnen() {
   return (
     <ModuleProvider>
       <AppLayout currentView={currentView} onNavigate={setCurrentView} onSuche={() => {}}>
-        <Modul />
+        <Modul onNavigate={setCurrentView} />
       </AppLayout>
     </ModuleProvider>
   )

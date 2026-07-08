@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [user,         setUser]         = useState(null)
   const [erpUser,      setErpUser]      = useState(null)
   const [erpUserFehlt, setErpUserFehlt] = useState(false)
+  const [erpUserDeaktiviert, setErpUserDeaktiviert] = useState(false)
   const [configured,   setConfigured]   = useState(isConfigured())
 
   // EINZIGE ÄNDERUNG vs Original:
@@ -41,15 +42,21 @@ export function AuthProvider({ children }) {
     const { data: listener } = sb.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
       if (event === 'SIGNED_OUT' || !session) {
-        setUser(null); setErpUser(null); setErpUserFehlt(false); setLoading(false)
+        setUser(null); setErpUser(null); setErpUserFehlt(false); setErpUserDeaktiviert(false); setLoading(false)
         return
       }
       if (session?.user) {
         setUser(session.user)
         const eu = await loadErpUser(session.access_token, session.user.id)
         if (!mounted) return
-        if (eu) { setErpUser(eu); setErpUserFehlt(false) }
-        else     { setErpUserFehlt(true) }
+        if (eu && eu.aktiv === false) {
+          // Zugang wurde deaktiviert: NICHT als eingeloggt behandeln.
+          setErpUser(null); setErpUserFehlt(false); setErpUserDeaktiviert(true)
+        } else if (eu) {
+          setErpUser(eu); setErpUserFehlt(false); setErpUserDeaktiviert(false)
+        } else {
+          setErpUserFehlt(true); setErpUserDeaktiviert(false)
+        }
         setLoading(false)
       }
     })
@@ -85,7 +92,7 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     try { const sb = getSupabaseClient(); if (sb) await sb.auth.signOut() }
     catch(e) { console.warn('signOut:', e) }
-    setUser(null); setErpUser(null); setErpUserFehlt(false)
+    setUser(null); setErpUser(null); setErpUserFehlt(false); setErpUserDeaktiviert(false)
   }
 
   const hasRole = (requiredRole) => {
@@ -100,7 +107,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, erpUser, loading, configured, erpUserFehlt,
+      user, erpUser, loading, configured, erpUserFehlt, erpUserDeaktiviert,
       signIn, signOut, hasRole, reconfigure
     }}>
       {children}

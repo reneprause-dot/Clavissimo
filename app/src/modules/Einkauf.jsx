@@ -26,7 +26,7 @@ const TYP_ICON = { bestellung: '📋', wareneingang: '📦', rechnung: '🧾', g
 
 function initPos() { return { artikel_id: '', bezeichnung: '', menge: '1', einheit: 'Stk', einzelpreis: '0', mwst_satz: '19' } }
 
-export default function Einkauf() {
+export default function Einkauf({ onNavigate }) {
   const { erpUser, hasRole } = useAuth()
   const [belege, setBelege] = useState([])
   const [lieferanten, setLieferanten] = useState([])
@@ -40,6 +40,7 @@ export default function Einkauf() {
   const [positionen, setPositionen] = useState([initPos()])
   const [saving, setSaving] = useState(false)
   const [msg, setMsg]               = useState(null)
+  const [btmHinweis, setBtmHinweis] = useState(null) // Artikelnamen, für die nach Wareneingang eine Charge fehlt
   const [vorschauBeleg, setVorschauBeleg] = useState(null)
   const [zeigeManRechnung, setZeigeManRechnung] = useState(false)
 
@@ -48,7 +49,7 @@ export default function Einkauf() {
     const [{ data: bel }, { data: lief }, { data: art }, { data: op }] = await Promise.all([
       sb.from('einkaufsbelege').select('*, lieferant:geschaeftspartner(id,name,zahlungsziel)').order('created_at', { ascending: false }).limit(200),
       sb.from('geschaeftspartner').select('id,name,zahlungsziel').in('typ', ['lieferant','beide']).eq('aktiv', true).order('name'),
-      sb.from('artikel').select('id,artikelnr,bezeichnung,einkaufspreis,mwst_satz,einheit,bestand').eq('aktiv', true).order('bezeichnung'),
+      sb.from('artikel').select('id,artikelnr,bezeichnung,einkaufspreis,mwst_satz,einheit,bestand,btm_pflichtig').eq('aktiv', true).order('bezeichnung'),
       sb.from('offene_posten').select('*, partner:geschaeftspartner(name)').eq('typ', 'kreditor').neq('status', 'ausgeglichen').order('faelligkeitsdatum')
     ])
     setBelege(bel || []); setLieferanten(lief || []); setArtikel(art || []); setOffenePosten(op || [])
@@ -113,6 +114,16 @@ export default function Einkauf() {
         partnerId: selectedBeleg.lieferant_id, belegnr: form.lieferscheinnr, userId: erpUser?.id,
       })
       setMsg({ ok: true, text: 'Wareneingang gebucht! Bestand erhöht, Bestellung archiviert.' })
+
+      // Erinnerung: BtM-pflichtige Artikel brauchen eine Charge — Wareneingang
+      // legt sie nicht automatisch an (das passiert bewusst im Compliance-Modul,
+      // wo auch CoA-Upload und Freigabe-Workflow liegen).
+      const btmArtikelnamen = posMap
+        .map(p => artikel.find(a => a.id === p.artikel_id))
+        .filter(a => a?.btm_pflichtig)
+        .map(a => a.bezeichnung)
+      if (btmArtikelnamen.length > 0) setBtmHinweis(btmArtikelnamen)
+
       setTimeout(() => { setModal(null); load() }, 1800)
     } catch(e) { setMsg({ ok: false, text: e.message }) }
     setSaving(false)
@@ -234,6 +245,14 @@ export default function Einkauf() {
           `🧾 Eingangsrechnung zu ${selectedBeleg?.belegnr}`
         }>
           {msg && <AlertBox ok={msg.ok} text={msg.text} />}
+          {btmHinweis && (
+            <div style={{ background:'var(--warning,#B4650F)18', border:'1px solid var(--warning,#B4650F)', borderRadius:8, padding:'0.7rem 1rem', margin:'0 0 0.75rem', fontSize:'0.8rem', color:'var(--warning,#B4650F)', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.6rem' }}>
+              <span>🌿 BtM-pflichtig: {btmHinweis.join(', ')} — noch keine Charge angelegt.</span>
+              <button onClick={()=>onNavigate?.('medcang')} style={{ background:'var(--warning,#B4650F)', color:'#fff', border:'none', borderRadius:6, padding:'0.35rem 0.8rem', cursor:'pointer', fontFamily:'inherit', fontSize:'0.76rem', fontWeight:600, whiteSpace:'nowrap' }}>
+                Jetzt Charge anlegen →
+              </button>
+            </div>
+          )}
 
           {/* Kopfdaten */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>

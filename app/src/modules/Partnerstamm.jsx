@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { getSupabaseClient } from '../lib/supabase'
 import { dbCall } from '../lib/dbHelper'
 import { useAuth } from '../context/AuthContext'
+import { logAudit } from '../lib/auditTrail'
 
 export default function Partnerstamm() {
-  const { hasRole } = useAuth()
+  const { hasRole, erpUser } = useAuth()
   const [partner, setPartner] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -68,6 +69,14 @@ export default function Partnerstamm() {
       ? await sb.from('geschaeftspartner').update(payload).eq('id', editing)
       : await sb.from('geschaeftspartner').insert(payload)
     if (error) { showMsg(false, `Fehler: ${error.message}`); setSaving(false); return }
+    await logAudit(editing ? 'partner_geaendert' : 'partner_angelegt', {
+      partnerId: editing || null, name: payload.name, userId: erpUser?.id,
+      erlaubnisse: {
+        medcang_erlaubnis_gueltig: payload.medcang_erlaubnis_gueltig,
+        btm_erlaubnis_gueltig: payload.btm_erlaubnis_gueltig,
+        gdp_zertifikat_gueltig: payload.gdp_zertifikat_gueltig,
+      },
+    })
     setShowForm(false); load(); setSaving(false)
     showMsg(true, editing ? 'Partner aktualisiert.' : 'Partner angelegt.')
   }

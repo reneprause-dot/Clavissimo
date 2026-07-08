@@ -34,6 +34,7 @@ export default function MedCanGPharma() {
   const [artikel, setArtikel] = useState([])
   const [chargen, setChargen] = useState([])
   const [partner, setPartner] = useState([])
+  const [lagerorte, setLagerorte] = useState([])
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
@@ -44,12 +45,13 @@ export default function MedCanGPharma() {
   const load = async () => {
     const sb = getSupabaseClient()
     setLoading(true)
-    const [{ data: art }, { data: ch }, { data: par }] = await Promise.all([
+    const [{ data: art }, { data: ch }, { data: par }, { data: lo }] = await Promise.all([
       sb.from('artikel').select('id,artikelnr,bezeichnung,pzn,btm_pflichtig,medcang_kategorie,thc_gehalt,cbd_gehalt,sorte,bestand,einheit,aktiv,amg_zulassungsnummer,amg_kategorie,gmp_klasse,serialisierungspflichtig,temperaturklasse,haltbarkeit_tage').eq('aktiv',true).order('bezeichnung'),
-      sb.from('chargen').select('*, artikel:artikel(bezeichnung,pzn,amg_zulassungsnummer)').order('created_at',{ascending:false}).limit(200),
+      sb.from('chargen').select('*, artikel:artikel(bezeichnung,pzn,amg_zulassungsnummer), lagerort:lagerorte(code,bezeichnung)').order('created_at',{ascending:false}).limit(200),
       sb.from('geschaeftspartner').select('id,name,typ,medcang_erlaubnis,medcang_erlaubnis_gueltig,medcang_behoerde,btm_erlaubnis,btm_erlaubnis_gueltig,apotheken_ik,grosshandels_erlaubnis,amg_herstellungserlaubnis,amg_herstellungserlaubnis_gueltig,gdp_zertifikat,gdp_zertifikat_gueltig').eq('aktiv',true).order('name'),
+      sb.from('lagerorte').select('id,code,bezeichnung').eq('aktiv',true).order('sortierung'),
     ])
-    setArtikel(art||[]); setChargen(ch||[]); setPartner(par||[])
+    setArtikel(art||[]); setChargen(ch||[]); setPartner(par||[]); setLagerorte(lo||[])
     setLoading(false)
   }
 
@@ -73,7 +75,26 @@ export default function MedCanGPharma() {
     load()
   }
 
-  const openNeueCharge = () => { setForm({ artikel_id: artikel[0]?.id || '', chargennr: '', bestand: '', mhd: '', thc_analysiert: '', cbd_analysiert: '' }); setModal('neueCharge') }
+  const openNeueCharge = () => { setForm({ artikel_id: artikel[0]?.id || '', chargennr: '', bestand: '', mhd: '', thc_analysiert: '', cbd_analysiert: '', lagerort_id: '' }); setModal('neueCharge') }
+
+  const handleCoaUpload = async (charge, file) => {
+    if (!file) return
+    const sb = getSupabaseClient()
+    const pfad = `${charge.id}/${Date.now()}_${file.name}`
+    const { error: uploadErr } = await sb.storage.from('coa-dokumente').upload(pfad, file, { upsert: true })
+    if (uploadErr) { showMsg(false, `CoA-Upload fehlgeschlagen: ${uploadErr.message}`); return }
+    const { error: updateErr } = await sb.from('chargen').update({ analysezertifikat_path: pfad }).eq('id', charge.id)
+    if (updateErr) { showMsg(false, `Speichern fehlgeschlagen: ${updateErr.message}`); return }
+    showMsg(true, 'CoA-Dokument hochgeladen.')
+    load()
+  }
+
+  const handleCoaAnsehen = async (pfad) => {
+    const sb = getSupabaseClient()
+    const { data, error } = await sb.storage.from('coa-dokumente').createSignedUrl(pfad, 3600)
+    if (error) { showMsg(false, `CoA konnte nicht geöffnet werden: ${error.message}`); return }
+    window.open(data.signedUrl, '_blank')
+  }
 
   const handleNeueCharge = async () => {
     if (!form.artikel_id || !form.chargennr?.trim() || !form.bestand) {
@@ -88,6 +109,7 @@ export default function MedCanGPharma() {
       mhd: form.mhd || null,
       thc_analysiert: form.thc_analysiert === '' ? null : parseFloat(form.thc_analysiert),
       cbd_analysiert: form.cbd_analysiert === '' ? null : parseFloat(form.cbd_analysiert),
+      lagerort_id: form.lagerort_id || null,
       status: 'entwurf',
     })
     setSaving(false)
@@ -216,6 +238,13 @@ export default function MedCanGPharma() {
                   <label style={{ display:'block', fontSize:'0.68rem', color:'var(--text-muted,#64748b)', textTransform:'uppercase', marginBottom:'0.25rem' }}>CBD analysiert (%)</label>
                   <input type="number" step="0.01" value={form.cbd_analysiert||''} onChange={e=>setForm({...form,cbd_analysiert:e.target.value})} style={mfInp} />
                 </div>
+                <div>
+                  <label style={{ display:'block', fontSize:'0.68rem', color:'var(--text-muted,#64748b)', textTransform:'uppercase', marginBottom:'0.25rem' }}>Lagerort</label>
+                  <select value={form.lagerort_id||''} onChange={e=>setForm({...form,lagerort_id:e.target.value})} style={mfInp}>
+                    <option value="">– keine Auswahl –</option>
+                    {lagerorte.map(l => <option key={l.id} value={l.id}>{l.bezeichnung}</option>)}
+                  </select>
+                </div>
               </div>
               <div style={{ display:'flex', gap:'0.6rem', justifyContent:'flex-end', marginTop:'1rem' }}>
                 <button onClick={()=>setModal(null)} style={{ background:'transparent', color:'var(--text-secondary,#94a3b8)', border:'1px solid var(--border,#2d3748)', borderRadius:8, padding:'0.5rem 1rem', cursor:'pointer', fontFamily:'inherit', fontSize:'0.8rem' }}>Abbrechen</button>
@@ -239,13 +268,20 @@ export default function MedCanGPharma() {
                       </span>
                       {c.quarantaene && <span style={{ color:'var(--warning,#fbbf24)', fontSize:'0.72rem' }}>⚠️ Quarantäne</span>}
                     </div>
-                    <div style={{ color:'var(--text-secondary,#64748b)', fontSize:'0.78rem' }}>{c.artikel?.bezeichnung}</div>
+                    <div style={{ color:'var(--text-secondary,#64748b)', fontSize:'0.78rem' }}>{c.artikel?.bezeichnung}{c.lagerort && ` · 📍 ${c.lagerort.bezeichnung}`}</div>
                     <div style={{ display:'flex', gap:'1.5rem', marginTop:'0.4rem', fontSize:'0.75rem', color:'var(--text-muted,#475569)', flexWrap:'wrap' }}>
                       {c.pzn && <span>PZN: <span style={{ color:'var(--text-primary,#e2e8f0)' }}>{c.pzn}</span></span>}
                       {c.thc_analysiert != null && <span>THC: <span style={{ color:'var(--warning,#fbbf24)' }}>{c.thc_analysiert}%</span></span>}
                       {c.cbd_analysiert != null && <span>CBD: <span style={{ color:'var(--success,#6ee7b7)' }}>{c.cbd_analysiert}%</span></span>}
                       {c.mhd && <span>MHD: <span style={{ color:new Date(c.mhd)<new Date()?'var(--danger,#ef4444)':'var(--text-primary,#e2e8f0)' }}>{new Date(c.mhd).toLocaleDateString('de-DE')}</span></span>}
-                      {c.analysezertifikat_path && <span style={{ color:'var(--accent-light,#60a5fa)' }}>📄 CoA vorhanden</span>}
+                      {c.analysezertifikat_path ? (
+                        <button onClick={()=>handleCoaAnsehen(c.analysezertifikat_path)} style={{ background:'none', border:'none', color:'var(--accent-light,#60a5fa)', cursor:'pointer', fontFamily:'inherit', fontSize:'0.75rem', padding:0 }}>📄 CoA ansehen</button>
+                      ) : (
+                        <label style={{ color:'var(--warning,#fbbf24)', fontSize:'0.75rem', cursor:'pointer' }}>
+                          📎 CoA hochladen
+                          <input type="file" accept="application/pdf,image/*" style={{ display:'none' }} onChange={e=>handleCoaUpload(c, e.target.files?.[0])} />
+                        </label>
+                      )}
                     </div>
                   </div>
                   {hasRole('manager') && c.status === 'gesperrt' && (

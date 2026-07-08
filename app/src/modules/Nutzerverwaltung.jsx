@@ -9,12 +9,13 @@
 import { useEffect, useState } from 'react'
 import { getSupabaseClient } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { logAudit } from '../lib/auditTrail'
 
 const ROLLEN = ['readonly', 'user', 'manager', 'admin']
 const PROXY_URL = import.meta.env.VITE_PROXY_URL || ''
 
 export default function Nutzerverwaltung() {
-  const { hasRole } = useAuth()
+  const { hasRole, erpUser } = useAuth()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [neu, setNeu] = useState({ email: '', name: '', role: 'user' })
@@ -59,6 +60,15 @@ export default function Nutzerverwaltung() {
     const sb = getSupabaseClient()
     const { error } = await sb.from('erp_users').update({ role: rolle }).eq('id', user.id)
     if (error) { showMsg(false, error.message); return }
+    await logAudit('nutzer_rolle_geaendert', { nutzerId: user.id, email: user.email, vonRolle: user.role, zuRolle: rolle, geaendertVon: erpUser?.id })
+    load()
+  }
+
+  const handleAktivToggle = async (user) => {
+    const sb = getSupabaseClient()
+    const { error } = await sb.from('erp_users').update({ aktiv: !user.aktiv }).eq('id', user.id)
+    if (error) { showMsg(false, error.message); return }
+    await logAudit(user.aktiv ? 'nutzer_deaktiviert' : 'nutzer_aktiviert', { nutzerId: user.id, email: user.email, geaendertVon: erpUser?.id })
     load()
   }
 
@@ -115,20 +125,29 @@ export default function Nutzerverwaltung() {
       <div style={{ background: 'var(--card-bg,#fff)', border: '1px solid var(--border,#DCE6DC)', borderRadius: 12, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
           <thead><tr style={{ background: 'var(--bg-primary,#F5F8F4)' }}>
-            {['Name', 'E-Mail', 'Rolle', 'Angelegt'].map(h => (
+            {['Name', 'E-Mail', 'Rolle', 'Status', 'Angelegt'].map(h => (
               <th key={h} style={{ padding: '0.7rem 1rem', textAlign: 'left', color: 'var(--text-muted,#748575)', fontWeight: 600, fontSize: '0.68rem', textTransform: 'uppercase' }}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted,#748575)' }}>Lade…</td></tr>
+            {loading ? <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted,#748575)' }}>Lade…</td></tr>
             : users.map(u => (
-              <tr key={u.id} style={{ borderTop: '1px solid var(--border,#DCE6DC)' }}>
+              <tr key={u.id} style={{ borderTop: '1px solid var(--border,#DCE6DC)', opacity: u.aktiv === false ? 0.5 : 1 }}>
                 <td style={{ padding: '0.65rem 1rem', color: 'var(--text-primary,#17241A)', fontWeight: 500 }}>{u.name || '–'}</td>
                 <td style={{ padding: '0.65rem 1rem', color: 'var(--text-secondary,#3E4E40)' }}>{u.email}</td>
                 <td style={{ padding: '0.65rem 1rem' }}>
                   <select value={u.role} onChange={e => handleRolleAendern(u, e.target.value)} style={{ ...inp, padding: '0.3rem 0.5rem', fontSize: '0.76rem', width: 'auto' }}>
                     {ROLLEN.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
+                </td>
+                <td style={{ padding: '0.65rem 1rem' }}>
+                  <button onClick={() => handleAktivToggle(u)} style={{
+                    background: u.aktiv === false ? 'var(--text-muted,#748575)18' : 'var(--success,#16A34A)18',
+                    color: u.aktiv === false ? 'var(--text-muted,#748575)' : 'var(--success,#16A34A)',
+                    border: 'none', borderRadius: 6, padding: '0.3rem 0.7rem', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.74rem', fontWeight: 600,
+                  }}>
+                    {u.aktiv === false ? '⊘ Deaktiviert' : '✓ Aktiv'}
+                  </button>
                 </td>
                 <td style={{ padding: '0.65rem 1rem', color: 'var(--text-muted,#748575)', fontFamily: 'monospace', fontSize: '0.72rem' }}>
                   {u.created_at ? new Date(u.created_at).toLocaleDateString('de-DE') : '–'}
