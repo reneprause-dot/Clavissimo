@@ -25,6 +25,23 @@ export async function ladeGesamtBestand() {
   return data || []
 }
 
+/** Alle Chargen mit Bestand > 0, gruppiert nach artikel_id (für die
+ * aufklappbare Chargenansicht in der Dashboard-Bestandsliste). */
+export async function ladeChargenProArtikel() {
+  const sb = getSupabaseClient()
+  const { data, error } = await sb.from('chargen')
+    .select('id, artikel_id, chargennr, bestand, mhd, status, lagerort:lagerorte(bezeichnung)')
+    .gt('bestand', 0)
+    .order('mhd', { ascending: true, nullsFirst: false })
+  if (error) return {}
+  const map = {}
+  ;(data || []).forEach(c => {
+    if (!map[c.artikel_id]) map[c.artikel_id] = []
+    map[c.artikel_id].push(c)
+  })
+  return map
+}
+
 /** Prüft, ob für den aktuellen Monat bereits eine BtM-Meldung existiert. */
 export async function pruefeAktuelleMeldung() {
   const sb = getSupabaseClient()
